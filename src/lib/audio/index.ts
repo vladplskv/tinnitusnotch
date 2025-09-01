@@ -9,24 +9,39 @@ export class AudioGenerator {
 	state: PlayState = 'idle';
 	volume: number;
 	frequency: number;
+	qFactor: number;
 
 	ctx: AudioContext;
 	gainNode: GainNode;
+	analyzerNode: AnalyserNode;
+	outputNode: AudioNode;
 	oscillatorNode: OscillatorNode = null;
 	filterNode: BiquadFilterNode = null;
 
-	constructor(volume: number = 10, frequency: number = 3000) {
+	frequencyData: Uint8Array;
+
+	constructor(volume: number = 10, frequency: number = 3000, qFactor: number = 1) {
 		this.ctx = new AudioContext();
+
 
 		this.setVolume(volume);
 		this.setFrequency(frequency);
+		this.setQFactor(qFactor);
 	}
 
 	async initModules() {
 		await loadWhiteNoiseProcessorModule(this.ctx);
 
+		this.analyzerNode = new AnalyserNode(this.ctx, {
+			fftSize: 256,
+		});
+		this.frequencyData = new Uint8Array(this.analyzerNode.frequencyBinCount);
+		this.analyzerNode.connect(this.ctx.destination);
+
 		this.gainNode = this.ctx.createGain();
-		this.gainNode.connect(this.ctx.destination);
+		this.gainNode.connect(this.analyzerNode);
+
+		this.outputNode = this.gainNode;
 	}
 
 	setVolume(volume: number) {
@@ -47,6 +62,14 @@ export class AudioGenerator {
 		}
 	}
 
+	setQFactor(factor: number) {
+		this.qFactor = factor;
+
+		if (this.filterNode) {
+			this.filterNode.Q.value = factor;
+		}
+	}
+
 	private async unmount() {
 		if (this.oscillatorNode) {
 			this.oscillatorNode.stop(0);
@@ -63,23 +86,24 @@ export class AudioGenerator {
 	}
 
 	private startOscillator(): void {
-		this.oscillatorNode = this.ctx.createOscillator();
-		this.oscillatorNode.connect(this.gainNode);
+		this.oscillatorNode = new OscillatorNode(this.ctx);
+		this.oscillatorNode.connect(this.outputNode);
 		this.setFrequency(this.frequency);
 
 		this.oscillatorNode.start(0);
 	}
 
 	private startNoise() {
-		this.filterNode = this.ctx.createBiquadFilter();
-		this.filterNode.type = 'notch';
+		this.filterNode = new BiquadFilterNode(this.ctx, {
+			type: 'notch',
+		});
 		this.setFrequency(this.frequency);
-		this.filterNode.Q.value = 1;
+		this.filterNode.Q.value = this.qFactor;
 
 		const processor = createWhiteNoiseModule(this.ctx);
 
 		processor.connect(this.filterNode);
-		this.filterNode.connect(this.gainNode);
+		this.filterNode.connect(this.outputNode);
 	}
 
 	async setState(state: PlayState = 'idle') {
@@ -97,4 +121,9 @@ export class AudioGenerator {
 
 		this.state = state;
 	}
+
+	getByteFrequencyData(): Uint8Array {
+		this.analyzerNode.getByteFrequencyData(this.frequencyData);
+		return this.frequencyData;
+	};
 }
