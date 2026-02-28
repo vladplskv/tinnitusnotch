@@ -26,6 +26,7 @@ import {
 	createEffect,
 	createResource,
 	createSignal,
+	onCleanup,
 	onMount,
 	Show,
 } from 'solid-js';
@@ -37,8 +38,7 @@ function mapRange(value: number, x1: number, y1: number, x2: number, y2: number)
 const MAX_FREQUENCY = 22000;
 const MAX_VOLUME = 100;
 
-
-export function IndexPage() {
+export function WhiteNoiseTherapyPage() {
 	const [frequency, setFrequency] = makePersisted(createSignal(3000), {name: 'frequency'});
 	const [volume, setVolume] = makePersisted(createSignal(10), {name: 'volume'});
 	const volumePercent = () => volume() / 1000;
@@ -47,9 +47,9 @@ export function IndexPage() {
 	const [state, setState] = createSignal<PlayState>('idle');
 
 	const [audio] = createResource(async () => {
-		const audio = new AudioGenerator(volumePercent(), frequency(), qFactor());
-		await audio.initModules();
-		return audio;
+		const player = new AudioGenerator(volumePercent(), frequency(), qFactor());
+		await player.initModules();
+		return player;
 	});
 
 	createEffect(() => {
@@ -62,8 +62,7 @@ export function IndexPage() {
 		audio()?.setQFactor(qFactor());
 	});
 	createEffect(() => {
-		audio()?.setState(state()).then(() => {
-		});
+		void audio()?.setState(state());
 	});
 
 	let canvas: HTMLCanvasElement;
@@ -72,18 +71,28 @@ export function IndexPage() {
 		canvas.width = canvas.clientWidth;
 		canvas.height = canvas.clientHeight;
 
-		canvasContext = canvas.getContext('2d');
+		const context = canvas.getContext('2d');
+		if (!context) {
+			throw new Error('Canvas context is not available');
+		}
+		canvasContext = context;
+	});
+
+	onCleanup(() => {
+		void audio()?.setState('idle');
 	});
 
 	const [, start] = createRAF(() => {
-		const a = audio();
-		if (!canvas || !a) return;
+		const player = audio();
+		if (!canvas || !player || !canvasContext) {
+			return;
+		}
 
 		canvasContext.clearRect(0, 0, canvas.width, canvas.height);
 
-		const freqData = a.getByteFrequencyData();
+		const freqData = player.getByteFrequencyData();
 		const barWidth = canvas.width / freqData.length;
-		for (let i = 0; i < freqData.length; i++) {
+		for (let i = 0; i < freqData.length; i += 1) {
 			const barHeight = mapRange(freqData[i], 0, 255, 0, canvas.height);
 
 			canvasContext.fillStyle = window.getComputedStyle(canvas).getPropertyValue('--primary');
@@ -95,7 +104,6 @@ export function IndexPage() {
 			);
 		}
 	});
-
 
 	start();
 
@@ -131,11 +139,30 @@ export function IndexPage() {
 		}
 	}
 
-	const pointerX = () => mapRange(frequency(), 1, 22000, 0, canvas.clientWidth) - 6;
-	const pointerY = () => canvas.clientHeight - mapRange(volume(), 0, 50, 0, canvas.clientHeight) - 6;
+	const pointerX = () => {
+		if (!canvas) {
+			return 0;
+		}
+		return mapRange(frequency(), 1, 22000, 0, canvas.clientWidth) - 6;
+	};
+	const pointerY = () => {
+		if (!canvas) {
+			return 0;
+		}
+		return canvas.clientHeight - mapRange(volume(), 0, 50, 0, canvas.clientHeight) - 6;
+	};
 
 	return (
 		<div class="w-full space-y-6">
+			<Card>
+				<CardHeader>
+					<CardTitle>Терапия белым шумом</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p class="text-sm text-muted-foreground">Страница для обычной терапии белым шумом и поиска частоты.</p>
+				</CardContent>
+			</Card>
+
 			<div class="relative h-[300px]" onPointerDown={onPointerDown}
 			     onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
 				<canvas class="w-full h-full rounded-xl border" ref={canvas}/>
@@ -148,15 +175,15 @@ export function IndexPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Find your frequency</CardTitle>
+					<CardTitle>Подбор частоты</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<Slider class="space-y-3" minValue={1} maxValue={MAX_FREQUENCY}
-					        getValueLabel={(params) => `${params.values} Hz`}
+					        getValueLabel={(params) => `${params.values} Гц`}
 					        value={[frequency()]}
 					        onChange={([value]) => setFrequency(value)}>
 						<div class="flex w-full justify-between">
-							<SliderLabel>Frequency</SliderLabel>
+							<SliderLabel>Частота</SliderLabel>
 							<SliderInputLabel/>
 						</div>
 						<SliderTrack>
@@ -167,22 +194,23 @@ export function IndexPage() {
 				</CardContent>
 				<CardFooter>
 					<Button variant="secondary" class="w-full"
-					        onClick={() => setState((state) => state === 'sound' ? 'idle' : 'sound')}>
-						<Show when={state() !== 'sound'} fallback="Stop Sound">
-							Play Sound
+					        onClick={() => setState((value) => value === 'sound' ? 'idle' : 'sound')}>
+						<Show when={state() !== 'sound'} fallback="Остановить звук">
+							Включить звук
 						</Show>
 					</Button>
 				</CardFooter>
 			</Card>
+
 			<Card>
 				<CardHeader>
-					<CardTitle>Listen</CardTitle>
+					<CardTitle>Белый шум</CardTitle>
 				</CardHeader>
 				<CardContent class="space-y-6">
 					<Slider class="space-y-3" minValue={0} maxValue={5} step={0.1} value={[qFactor()]}
 					        onChange={([value]) => setQFactor(value)}>
 						<div class="flex w-full justify-between">
-							<SliderLabel>Q-Factor</SliderLabel>
+							<SliderLabel>Ширина выреза (Q)</SliderLabel>
 							<SliderInputLabel/>
 						</div>
 						<SliderTrack>
@@ -193,7 +221,7 @@ export function IndexPage() {
 					<Slider class="space-y-3" minValue={0} maxValue={MAX_VOLUME} value={[volume()]}
 					        onChange={([value]) => setVolume(value)}>
 						<div class="flex w-full justify-between">
-							<SliderLabel>Volume</SliderLabel>
+							<SliderLabel>Громкость</SliderLabel>
 							<SliderInputLabel/>
 						</div>
 						<SliderTrack>
@@ -203,9 +231,9 @@ export function IndexPage() {
 					</Slider>
 				</CardContent>
 				<CardFooter>
-					<Button class="w-full" onClick={() => setState((state) => state === 'noise' ? 'idle' : 'noise')}>
-						<Show when={state() !== 'noise'} fallback="Stop White Noise Therapy">
-							Play White Noise Therapy
+					<Button class="w-full" onClick={() => setState((value) => value === 'noise' ? 'idle' : 'noise')}>
+						<Show when={state() !== 'noise'} fallback="Остановить терапию белым шумом">
+							Включить терапию белым шумом
 						</Show>
 					</Button>
 				</CardFooter>
