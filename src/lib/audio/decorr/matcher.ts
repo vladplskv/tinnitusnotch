@@ -20,7 +20,7 @@ function toNumberKeyMap(map: Record<number, boolean>): Map<number, boolean> {
 }
 
 function getNearestMatchFrequencyHz(selectedHz: number): number {
-	let nearestHz = TINNITUS_MATCH_FREQUENCIES_HZ[0];
+	let nearestHz: number = TINNITUS_MATCH_FREQUENCIES_HZ[0];
 	let nearestDistance = Number.POSITIVE_INFINITY;
 
 	for (const candidateHz of TINNITUS_MATCH_FREQUENCIES_HZ) {

@@ -1,0 +1,12 @@
+{
+  "ignorePatterns": [".agents/**", ".codex/**", ".git/**"],
+  "printWidth": 80,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "proseWrap": "preserve",
+  "sortPackageJson": false,
+  "sortTailwindcss": {
+    "functions": ["cn", "cva", "cx"],
+  },
+}

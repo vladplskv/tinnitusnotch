@@ -1,19 +1,17 @@
-import type { Component, ComponentProps } from "solid-js"
-import { splitProps } from "solid-js"
+import { omit } from 'solid-js';
+import { cn } from '@/lib/utils';
+import type { ComponentProps } from '@solidjs/web';
 
-import { cn } from "@/lib/utils"
+export function Label(props: ComponentProps<'label'>) {
+  const others = omit(props, 'class');
 
-const Label: Component<ComponentProps<"label">> = (props) => {
-	const [local, others] = splitProps(props, ["class"])
-	return (
-		<label
-			class={cn(
-				"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
-				local.class
-			)}
-			{...others}
-		/>
-	)
+  return (
+    <label
+      class={cn(
+        'text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+        props.class,
+      )}
+      {...others}
+    />
+  );
 }
-
-export { Label }
