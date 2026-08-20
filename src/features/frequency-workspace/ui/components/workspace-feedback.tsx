@@ -154,6 +154,57 @@ export function ConfirmationPanel(props: ConfirmationPanelProps) {
             <CancelConfirmation {...props} />
           </div>
         </Show>
+
+        <Show when={props.confirmation.kind === 'delete-preset'}>
+          <h2 id="confirmation-heading">Удалить Therapy Preset?</h2>
+          <p>
+            Пресет «
+            {'presetName' in props.confirmation &&
+              props.confirmation.presetName}
+            » будет удалён. После удаления его можно отменить в течение десяти
+            секунд.
+          </p>
+          <div class="button-row">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (props.confirmation.kind !== 'delete-preset') return;
+                props.dispatch({
+                  type: 'confirm-delete-preset',
+                  confirmationId: props.confirmation.id,
+                  originRevision: props.confirmation.originRevision,
+                });
+              }}
+            >
+              Удалить
+            </Button>
+            <CancelConfirmation {...props} />
+          </div>
+        </Show>
+
+        <Show when={props.confirmation.kind === 'discard-preset-edits'}>
+          <h2 id="confirmation-heading">Отбросить несохранённые изменения?</h2>
+          <p>
+            Текущие изменения Therapy Session не сохранены в загруженный пресет.
+          </p>
+          <div class="button-row">
+            <Button
+              type="button"
+              onClick={() => {
+                if (props.confirmation.kind !== 'discard-preset-edits') return;
+                props.dispatch({
+                  type: 'confirm-discard-preset-edits',
+                  confirmationId: props.confirmation.id,
+                  originRevision: props.confirmation.originRevision,
+                });
+              }}
+            >
+              Отбросить и продолжить
+            </Button>
+            <CancelConfirmation {...props} />
+          </div>
+        </Show>
       </section>
     </div>
   );

@@ -127,6 +127,93 @@ async function waitForStatus(
 }
 
 describe('Therapy Playback', () => {
+  it('captures Start and Continue resume calls synchronously in gesture dispatch', async () => {
+    const context = new FakeAudioContext();
+    const source: RunningPlaybackSource = {
+      applyLiveConfiguration: vi.fn(() => ({ kind: 'applied' as const })),
+      dispose: vi.fn(async () => undefined),
+    };
+    const factory: PlaybackSourceFactory = {
+      capabilities: {
+        liveFrequency: true,
+        liveMasterGain: true,
+        liveFilterSettings: false,
+      },
+      create: vi.fn(async () => source),
+    };
+    const playback = createTherapyPlayback(dependencies(context, factory));
+
+    playback.dispatch({ type: 'start-therapy', session: SESSION });
+    expect(context.resume).toHaveBeenCalledOnce();
+    await waitForStatus(playback, 'playing');
+
+    playback.dispatch({ type: 'pause' });
+    await waitForStatus(playback, 'paused');
+    playback.dispatch({ type: 'continue' });
+    expect(context.resume).toHaveBeenCalledTimes(2);
+    await waitForStatus(playback, 'playing');
+    await playback.dispose();
+  });
+
+  it('coalesces queued live edits and applies only the latest session', async () => {
+    const context = new FakeAudioContext();
+    let finishPause!: () => void;
+    context.suspend.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finishPause = resolve;
+        }),
+    );
+    const applyLiveConfiguration = vi.fn(() => ({ kind: 'applied' as const }));
+    const source: RunningPlaybackSource = {
+      applyLiveConfiguration,
+      dispose: vi.fn(async () => undefined),
+    };
+    const factory: PlaybackSourceFactory = {
+      capabilities: {
+        liveFrequency: true,
+        liveMasterGain: true,
+        liveFilterSettings: false,
+      },
+      create: vi.fn(async () => source),
+    };
+    const playback = createTherapyPlayback(dependencies(context, factory));
+
+    playback.dispatch({ type: 'start-therapy', session: SESSION });
+    await waitForStatus(playback, 'playing');
+    playback.dispatch({ type: 'pause' });
+    await vi.waitFor(() => expect(context.suspend).toHaveBeenCalledOnce());
+
+    for (const [frequencyHz, masterGain] of [
+      [4_100, 0.2],
+      [4_200, 0.3],
+      [4_300, 0.4],
+    ] as const) {
+      playback.dispatch({
+        type: 'apply-live-session',
+        session: {
+          ...SESSION,
+          masterGain,
+          tinnitusMatch: { ...MATCH, frequencyHz },
+        },
+      });
+    }
+    finishPause();
+
+    await vi.waitFor(() =>
+      expect(applyLiveConfiguration).toHaveBeenCalledOnce(),
+    );
+    expect(applyLiveConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          masterGain: 0.4,
+          tinnitusMatch: expect.objectContaining({ frequencyHz: 4_300 }),
+        }),
+      }),
+    );
+    await playback.dispose();
+  });
+
   it('previews a Hearing Correction sequence through the same shared graph', async () => {
     const context = new FakeAudioContext();
     const source: RunningPlaybackSource = {
@@ -162,6 +249,44 @@ describe('Therapy Playback', () => {
         },
       }),
     );
+    await playback.dispose();
+  });
+
+  it('updates a running Matching Stimulus frequency without recreating it', async () => {
+    const context = new FakeAudioContext();
+    const source: RunningPlaybackSource = {
+      applyLiveConfiguration: vi.fn(() => ({ kind: 'applied' as const })),
+      dispose: vi.fn(async () => undefined),
+    };
+    const factory: PlaybackSourceFactory = {
+      capabilities: {
+        liveFrequency: true,
+        liveMasterGain: true,
+        liveFilterSettings: false,
+      },
+      create: vi.fn(async () => source),
+    };
+    const playback = createTherapyPlayback(dependencies(context, factory));
+
+    playback.dispatch({
+      type: 'preview-matching-stimulus',
+      match: MATCH,
+      masterGain: 0.1,
+    });
+    await waitForStatus(playback, 'previewing');
+    playback.dispatch({
+      type: 'apply-live-session',
+      session: {
+        ...SESSION,
+        tinnitusMatch: { ...MATCH, frequencyHz: 4_800 },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(source.applyLiveConfiguration).toHaveBeenCalledOnce(),
+    );
+
+    expect(factory.create).toHaveBeenCalledOnce();
+    expect(playback.getSnapshot().status).toBe('previewing');
     await playback.dispose();
   });
 

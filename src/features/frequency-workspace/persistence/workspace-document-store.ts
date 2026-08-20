@@ -39,7 +39,9 @@ export interface WorkspaceDocumentStore {
   commit(
     request: WorkspaceDocumentCommitRequest,
   ): WorkspaceDocumentCommitResult;
-  remove(expectedRevision: number | null): WorkspaceDocumentRemoveResult;
+  remove(
+    expectedRevision: number | null | undefined,
+  ): WorkspaceDocumentRemoveResult;
   subscribe(
     listener: (change: WorkspaceDocumentExternalChange) => void,
   ): () => void;

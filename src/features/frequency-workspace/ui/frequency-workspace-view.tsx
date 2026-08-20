@@ -37,15 +37,20 @@ const STEPS = [
 
 export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
   const [step, setStep] = createSignal(1);
-  let observedLoadedPresetId = props.snapshot.loadedPresetId;
+  let observedLoadedPresetId: string | null = null;
 
-  createEffect(() => {
-    const loadedPresetId = props.snapshot.loadedPresetId;
-    if (loadedPresetId !== null && loadedPresetId !== observedLoadedPresetId) {
-      setStep(4);
-    }
-    observedLoadedPresetId = loadedPresetId;
-  });
+  createEffect(
+    () => props.snapshot.loadedPresetId,
+    loadedPresetId => {
+      if (
+        loadedPresetId !== null &&
+        loadedPresetId !== observedLoadedPresetId
+      ) {
+        setStep(4);
+      }
+      observedLoadedPresetId = loadedPresetId;
+    },
+  );
 
   return (
     <Show

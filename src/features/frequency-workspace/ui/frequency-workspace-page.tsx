@@ -1,4 +1,40 @@
+import { createFrequencyWorkspace, type WorkspaceSnapshot } from '../index';
+import { Show, createSignal, onCleanup, onSettled } from 'solid-js';
+import { FrequencyWorkspaceView } from './frequency-workspace-view';
+
 export default function FrequencyWorkspacePage() {
+  const [snapshot, setSnapshot] = createSignal<WorkspaceSnapshot | null>(null);
+  let workspace: ReturnType<typeof createFrequencyWorkspace> | null = null;
+  let unsubscribe = () => {};
+
+  onSettled(() => {
+    if (typeof window === 'undefined') return;
+    workspace = createFrequencyWorkspace();
+    setSnapshot(workspace.getSnapshot());
+    unsubscribe = workspace.subscribe(setSnapshot);
+  });
+
+  onCleanup(() => {
+    unsubscribe();
+    const currentWorkspace = workspace;
+    workspace = null;
+    void currentWorkspace?.dispose();
+  });
+
+  return (
+    <Show when={snapshot() !== null} fallback={<ServerBootingShell />}>
+      <FrequencyWorkspaceView
+        snapshot={snapshot()!}
+        dispatch={intent => workspace?.dispatch(intent)}
+        readSpectrum={target =>
+          workspace?.readSpectrum(target) ?? snapshot()!.playback.spectrum
+        }
+      />
+    </Show>
+  );
+}
+
+function ServerBootingShell() {
   return (
     <main class="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
       <header class="space-y-3">
@@ -6,12 +42,7 @@ export default function FrequencyWorkspacePage() {
         <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
           Frequency Workspace
         </h1>
-        <p class="text-muted-foreground max-w-2xl text-sm sm:text-base">
-          Подготавливаем единое пространство для подбора частоты, настройки
-          фильтра и управления воспроизведением.
-        </p>
       </header>
-
       <section
         aria-busy="true"
         aria-labelledby="workspace-status"
@@ -22,7 +53,7 @@ export default function FrequencyWorkspacePage() {
           Загружаем настройки
         </h2>
         <p class="text-muted-foreground mt-2 text-sm">
-          Управление звуком станет доступно после проверки локальных данных.
+          Звук не запускается автоматически.
         </p>
       </section>
     </main>

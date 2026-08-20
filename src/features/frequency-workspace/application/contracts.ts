@@ -85,6 +85,20 @@ export type PendingWorkspaceConfirmation =
       readonly kind: 'reset-local-data';
       readonly id: string;
       readonly originRevision: number;
+    }
+  | {
+      readonly kind: 'delete-preset';
+      readonly id: string;
+      readonly originRevision: number;
+      readonly presetId: string;
+      readonly presetName: string;
+    }
+  | {
+      readonly kind: 'discard-preset-edits';
+      readonly id: string;
+      readonly originRevision: number;
+      readonly presetId: string;
+      readonly action: 'load' | 'revert';
     };
 
 export interface WorkspaceSnapshot {
@@ -137,9 +151,19 @@ export type WorkspaceIntent =
     }
   | { readonly type: 'update-preset'; readonly id: string }
   | { readonly type: 'delete-preset'; readonly id: string }
+  | {
+      readonly type: 'confirm-delete-preset';
+      readonly confirmationId: string;
+      readonly originRevision: number;
+    }
   | { readonly type: 'undo-delete-preset'; readonly id: string }
   | { readonly type: 'load-preset'; readonly id: string }
   | { readonly type: 'revert-preset'; readonly id: string }
+  | {
+      readonly type: 'confirm-discard-preset-edits';
+      readonly confirmationId: string;
+      readonly originRevision: number;
+    }
   | {
       readonly type: 'confirm-am-projection';
       readonly confirmationId: string;

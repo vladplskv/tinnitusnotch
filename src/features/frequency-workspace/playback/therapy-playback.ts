@@ -46,6 +46,11 @@ interface ActiveSource {
   configuration: PlaybackSourceConfiguration;
 }
 
+interface CapturedGestureResume {
+  readonly graph: SharedAudioGraph | null;
+  readonly promise: Promise<void>;
+}
+
 function defaultDependencies(): TherapyPlaybackDependencies {
   return {
     createContext(options) {
@@ -134,6 +139,8 @@ export function createTherapyPlayback(
   let commandQueue = Promise.resolve();
   let disposed = false;
   let intentionalContextTransition = false;
+  let pendingLiveSession: TherapySession | null = null;
+  let liveUpdateScheduled = false;
 
   function publish(
     next: Partial<Omit<TherapyPlaybackSnapshot, 'spectrum'>>,
@@ -232,6 +239,19 @@ export function createTherapyPlayback(
     return graph;
   }
 
+  function captureGestureResume(): CapturedGestureResume {
+    try {
+      const capturedGraph = ensureGraph();
+      const promise = capturedGraph.context.resume();
+      void promise.catch(() => undefined);
+      return { graph: capturedGraph, promise };
+    } catch (error) {
+      const promise = Promise.reject(error);
+      void promise.catch(() => undefined);
+      return { graph: null, promise };
+    }
+  }
+
   async function loadFactory(
     configuration: PlaybackSourceConfiguration,
   ): Promise<PlaybackSourceFactory> {
@@ -283,6 +303,7 @@ export function createTherapyPlayback(
     token: number,
     configuration: PlaybackSourceConfiguration,
     masterGain: number,
+    capturedResume: CapturedGestureResume,
   ): Promise<void> {
     if (disposed || token !== operationToken) return;
     const filterId =
@@ -308,14 +329,13 @@ export function createTherapyPlayback(
     if (active) await stopActive(false);
     if (disposed || token !== operationToken) return;
 
-    let sharedGraph: SharedAudioGraph;
+    const sharedGraph = capturedResume.graph;
     try {
-      sharedGraph = ensureGraph();
-      intentionalContextTransition = true;
-      await sharedGraph.context.resume();
-      intentionalContextTransition = false;
+      await capturedResume.promise;
+      if (!sharedGraph) {
+        throw new Error('AudioContext was not created');
+      }
     } catch (error) {
-      intentionalContextTransition = false;
       publish({
         status: 'error',
         source: { kind: 'none' },
@@ -453,14 +473,28 @@ export function createTherapyPlayback(
   }
 
   async function applyLiveSession(session: TherapySession): Promise<void> {
-    if (!active || active.configuration.kind !== 'therapy-filter' || !graph)
-      return;
+    if (!active || !graph) return;
 
     graph.masterGain.gain.setTargetAtTime(
       session.masterGain,
       graph.context.currentTime,
       0.01,
     );
+    if (active.configuration.kind === 'matching-stimulus') {
+      const nextConfiguration: PlaybackSourceConfiguration = {
+        kind: 'matching-stimulus',
+        match: session.tinnitusMatch,
+      };
+      const result = active.running.applyLiveConfiguration(nextConfiguration);
+      if (result.kind === 'replace') {
+        await replaceActiveSource(nextConfiguration);
+      } else if (active) {
+        active.configuration = nextConfiguration;
+      }
+      return;
+    }
+    if (active.configuration.kind === 'hearing-correction-preview') return;
+
     if (active.configuration.filterId !== session.selectedFilterId) {
       await stopActive(true);
       return;
@@ -484,12 +518,36 @@ export function createTherapyPlayback(
     }
   }
 
+  async function flushLiveSessions(): Promise<void> {
+    try {
+      while (pendingLiveSession) {
+        const session = pendingLiveSession;
+        pendingLiveSession = null;
+        await applyLiveSession(session);
+      }
+    } finally {
+      liveUpdateScheduled = false;
+      if (pendingLiveSession) {
+        liveUpdateScheduled = true;
+        enqueue(flushLiveSessions);
+      }
+    }
+  }
+
+  function scheduleLiveSession(session: TherapySession): void {
+    pendingLiveSession = session;
+    if (liveUpdateScheduled) return;
+    liveUpdateScheduled = true;
+    enqueue(flushLiveSessions);
+  }
+
   function dispatch(intent: TherapyPlaybackIntent): void {
     if (disposed) return;
 
     if (
       intent.type === 'start-therapy' ||
       intent.type === 'preview-matching-stimulus' ||
+      intent.type === 'preview-hearing-correction' ||
       intent.type === 'stop'
     ) {
       operationToken += 1;
@@ -499,6 +557,7 @@ export function createTherapyPlayback(
     switch (intent.type) {
       case 'start-therapy': {
         const token = operationToken;
+        const capturedResume = captureGestureResume();
         enqueue(() =>
           start(
             token,
@@ -508,25 +567,27 @@ export function createTherapyPlayback(
               session: intent.session,
             },
             intent.session.masterGain,
+            capturedResume,
           ),
         );
         break;
       }
       case 'preview-matching-stimulus': {
         const token = operationToken;
+        const capturedResume = captureGestureResume();
         enqueue(() =>
           start(
             token,
             { kind: 'matching-stimulus', match: intent.match },
             intent.masterGain,
+            capturedResume,
           ),
         );
         break;
       }
       case 'preview-hearing-correction': {
-        operationToken += 1;
-        pendingAbort?.abort(new DOMException('Superseded', 'AbortError'));
         const token = operationToken;
+        const capturedResume = captureGestureResume();
         enqueue(() =>
           start(
             token,
@@ -535,12 +596,13 @@ export function createTherapyPlayback(
               hearingCorrection: intent.hearingCorrection,
             },
             intent.masterGain,
+            capturedResume,
           ),
         );
         break;
       }
       case 'apply-live-session':
-        enqueue(() => applyLiveSession(intent.session));
+        scheduleLiveSession(intent.session);
         break;
       case 'pause':
         enqueue(async () => {
@@ -573,30 +635,35 @@ export function createTherapyPlayback(
         });
         break;
       case 'continue':
-        enqueue(async () => {
-          if (!graph || !active || snapshot.status !== 'paused') return;
-          try {
-            intentionalContextTransition = true;
-            await graph.context.resume();
-            intentionalContextTransition = false;
-            publish({ status: 'playing', error: null });
-          } catch (error) {
-            intentionalContextTransition = false;
-            publish({
-              status: 'error',
-              error: normalizeError(
-                error,
-                active.snapshotSource.kind === 'therapy-filter'
-                  ? active.snapshotSource.filterId
-                  : null,
-              ),
-            });
-          }
-        });
+        if (!graph || !active || snapshot.status !== 'paused') break;
+        {
+          const capturedResume = captureGestureResume();
+          enqueue(async () => {
+            if (!graph || !active || snapshot.status !== 'paused') return;
+            try {
+              await capturedResume.promise;
+              publish({ status: 'playing', error: null });
+            } catch (error) {
+              publish({
+                status: 'paused',
+                error: normalizeError(
+                  error,
+                  active.snapshotSource.kind === 'therapy-filter'
+                    ? active.snapshotSource.filterId
+                    : null,
+                ),
+              });
+            }
+          });
+        }
         break;
-      case 'stop':
-        enqueue(() => stopActive(true));
+      case 'stop': {
+        const token = operationToken;
+        enqueue(() =>
+          token === operationToken ? stopActive(true) : Promise.resolve(),
+        );
         break;
+      }
       case 'retry':
         if (intent.filterId) unavailableFilters.delete(intent.filterId);
         publish({ status: active ? snapshot.status : 'stopped', error: null });
@@ -631,6 +698,7 @@ export function createTherapyPlayback(
       if (disposed) return;
       disposed = true;
       operationToken += 1;
+      pendingLiveSession = null;
       pendingAbort?.abort(new DOMException('Disposed', 'AbortError'));
       await commandQueue;
       if (active) {

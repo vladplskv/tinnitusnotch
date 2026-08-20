@@ -1,38 +1,59 @@
 [![Deploy static content to Pages](https://github.com/vladplskv/tinnitusnotch/actions/workflows/main.yml/badge.svg)](https://github.com/vladplskv/tinnitusnotch/actions/workflows/main.yml)
 
-## Usage
+# Tinnitus Notch
 
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
+Одностраничный Frequency Workspace для подбора частоты и настройки звука. В нём доступны два фильтра:
 
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+- White Noise с настраиваемой центральной частотой и Q;
+- экспериментальный De-correlating AM с подтверждаемым Active Band и Hearing Correction.
+
+Интерфейс сначала проводит пользователя по четырём шагам, а затем открывает полную форму. Частоту и поддерживаемые параметры можно менять во время воспроизведения. Настройки сессии и пресеты сохраняются локально в текущем браузере.
+
+> Это экспериментальный звуковой инструмент, а не медицинская услуга. Он не калибрует SPL и не подтверждает безопасность или эквивалентность клиническому протоколу. Начинайте с низкой системной громкости и немедленно останавливайте неприятный звук.
+
+## Локальный запуск
+
+Требуется Node.js и pnpm.
 
 ```bash
-$ npm install # or pnpm install or yarn install
+pnpm install
+pnpm dev
 ```
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+Vite покажет локальный адрес в терминале.
 
-## Available Scripts
+## Проверки
 
-In the project directory, you can run:
+```bash
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
 
-### `npm run dev` or `npm start`
+Браузерный AudioWorklet smoke-тест запускается отдельно и требует установленный Chromium для Playwright:
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```bash
+pnpm test:e2e
+```
 
-The page will reload if you make edits.<br>
+## Архитектура
 
-### `npm run build`
+Основной модуль находится в `src/features/frequency-workspace`:
 
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
+- `application` — единый фасад состояния и пользовательских команд;
+- `model` — сессии, готовность AM и пресеты;
+- `playback` — сериализованное Web Audio воспроизведение и источники;
+- `playback/dsp` — общий однопроходный DSP-контракт `paper-2025-v1`;
+- `persistence` — версионированный документ и защита от конфликтов вкладок;
+- `visualization` — логарифмическая шкала, спектр и оверлеи;
+- `ui` — guided tour и полная форма.
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+Старые ключи браузерного хранилища намеренно не мигрируются. Текущий документ хранится под ключом `tinnitusnotch.workspace.v1`.
+
+Подробная пользовательская инструкция: [DECORR_AM_USAGE.md](./DECORR_AM_USAGE.md).
 
 ## Deployment
 
-You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)
-
-## This project was created with the [Solid CLI](https://github.com/solidjs-community/solid-cli)
+Production-сборка создаётся командой `pnpm build`. Конфигурация Cloudflare находится в `wrangler.jsonc`; публикация выполняется командой `pnpm deploy`.

@@ -6,7 +6,7 @@ import type {
 import { formatFrequency } from '../../visualization/frequency-scale';
 import { createFrequencyInputRateLimiter } from '../../visualization/frequency-input-rate-limiter';
 import { Button } from '@/components/ui/button';
-import { For, createEffect, createSignal, onCleanup, untrack } from 'solid-js';
+import { For, createEffect, createSignal, onCleanup } from 'solid-js';
 
 interface FrequencyFieldsProps {
   readonly session: TherapySession;
@@ -19,41 +19,31 @@ interface FrequencyFieldsProps {
 
 export function FrequencyFields(props: FrequencyFieldsProps) {
   let exactInput: HTMLInputElement | undefined;
-  const [draft, setDraft] = createSignal(
-    String(props.session.tinnitusMatch.frequencyHz),
-  );
+  const [draft, setDraft] = createSignal('');
   const [invalid, setInvalid] = createSignal(false);
-  let previewFrequency = (frequencyHz: number) =>
-    props.dispatch({ type: 'preview-frequency', frequencyHz });
-  let commitFrequency = (frequencyHz: number) =>
-    props.dispatch({ type: 'commit-frequency', frequencyHz });
-
-  createEffect(() => {
-    untrack(() => {
-      const limiter = createFrequencyInputRateLimiter({
-        now: () => performance.now(),
-        schedule: (callback, delayMs) => {
-          const timeout = window.setTimeout(callback, delayMs);
-          return () => window.clearTimeout(timeout);
-        },
-        onPreview: frequencyHz =>
-          props.dispatch({ type: 'preview-frequency', frequencyHz }),
-        onCommit: frequencyHz =>
-          props.dispatch({ type: 'commit-frequency', frequencyHz }),
-      });
-      previewFrequency = limiter.preview;
-      commitFrequency = limiter.commit;
-      onCleanup(limiter.dispose);
-    });
+  const limiter = createFrequencyInputRateLimiter({
+    now: () => performance.now(),
+    schedule: (callback, delayMs) => {
+      const timeout = window.setTimeout(callback, delayMs);
+      return () => window.clearTimeout(timeout);
+    },
+    onPreview: frequencyHz =>
+      props.dispatch({ type: 'preview-frequency', frequencyHz }),
+    onCommit: frequencyHz =>
+      props.dispatch({ type: 'commit-frequency', frequencyHz }),
   });
+  const previewFrequency = limiter.preview;
+  const commitFrequency = limiter.commit;
+  onCleanup(limiter.dispose);
 
-  createEffect(() => {
-    const frequencyHz = props.session.tinnitusMatch.frequencyHz;
-    if (document.activeElement !== exactInput) {
+  createEffect(
+    () => props.session.tinnitusMatch.frequencyHz,
+    frequencyHz => {
+      if (document.activeElement === exactInput) return;
       setDraft(String(frequencyHz));
       setInvalid(false);
-    }
-  });
+    },
+  );
 
   const commitDraft = () => {
     const frequencyHz = Number(draft());

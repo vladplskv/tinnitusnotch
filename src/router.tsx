@@ -6,7 +6,11 @@ function LegacyRouteRedirect() {
   const navigate = useNavigate();
 
   onSettled(() => {
-    navigate('/', { replace: true });
+    const suffix =
+      typeof window === 'undefined'
+        ? ''
+        : `${window.location.search}${window.location.hash}`;
+    navigate(`/${suffix}`, { replace: true });
   });
 
   return (

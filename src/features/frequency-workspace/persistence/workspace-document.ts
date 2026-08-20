@@ -54,11 +54,14 @@ export type WorkspaceDocumentPresetEntry =
 interface PreservedWorkspaceRaw {
   readonly root: Readonly<Record<string, unknown>>;
   readonly session: Readonly<Record<string, unknown>>;
+  readonly sessionIsOpaque: boolean;
   readonly tinnitusMatch: Readonly<Record<string, unknown>>;
   readonly audibility: Readonly<Record<string, unknown>>;
   readonly filterSettings: Readonly<Record<string, unknown>>;
   readonly whiteNoise: Readonly<Record<string, unknown>>;
+  readonly whiteNoiseIsOpaque: boolean;
   readonly decorrelatingAM: Readonly<Record<string, unknown>>;
+  readonly decorrelatingAMIsOpaque: boolean;
 }
 
 export interface WorkspaceDocument {
@@ -99,11 +102,14 @@ function createEmptyPreservedRaw(): PreservedWorkspaceRaw {
   return {
     root: {},
     session: {},
+    sessionIsOpaque: false,
     tinnitusMatch: {},
     audibility: {},
     filterSettings: {},
     whiteNoise: {},
+    whiteNoiseIsOpaque: false,
     decorrelatingAM: {},
+    decorrelatingAMIsOpaque: false,
   };
 }
 
@@ -246,6 +252,9 @@ function encodeSession(
   session: TherapySession,
   preserved: PreservedWorkspaceRaw,
 ): Record<string, unknown> {
+  if (preserved.sessionIsOpaque) {
+    return cloneJsonValue(preserved.session);
+  }
   return {
     ...cloneJsonValue(preserved.session),
     schemaVersion: SESSION_SCHEMA_VERSION,
@@ -262,19 +271,23 @@ function encodeSession(
     selectedFilterId: session.selectedFilterId,
     filterSettings: {
       ...cloneJsonValue(preserved.filterSettings),
-      'white-noise': {
-        ...cloneJsonValue(preserved.whiteNoise),
-        schemaVersion: FILTER_SETTINGS_SCHEMA_VERSION,
-        q: session.filterSettings['white-noise'].q,
-      },
-      'decorrelating-am': {
-        ...cloneJsonValue(preserved.decorrelatingAM),
-        schemaVersion: FILTER_SETTINGS_SCHEMA_VERSION,
-        hearingCorrection:
-          session.filterSettings['decorrelating-am'].hearingCorrection,
-        confirmedProjectionHz:
-          session.filterSettings['decorrelating-am'].confirmedProjectionHz,
-      },
+      'white-noise': preserved.whiteNoiseIsOpaque
+        ? cloneJsonValue(preserved.whiteNoise)
+        : {
+            ...cloneJsonValue(preserved.whiteNoise),
+            schemaVersion: FILTER_SETTINGS_SCHEMA_VERSION,
+            q: session.filterSettings['white-noise'].q,
+          },
+      'decorrelating-am': preserved.decorrelatingAMIsOpaque
+        ? cloneJsonValue(preserved.decorrelatingAM)
+        : {
+            ...cloneJsonValue(preserved.decorrelatingAM),
+            schemaVersion: FILTER_SETTINGS_SCHEMA_VERSION,
+            hearingCorrection:
+              session.filterSettings['decorrelating-am'].hearingCorrection,
+            confirmedProjectionHz:
+              session.filterSettings['decorrelating-am'].confirmedProjectionHz,
+          },
     },
   };
 }
@@ -566,6 +579,9 @@ export function decodeWorkspaceDocument(
 
   const sessionSchemaSupported =
     rawSession.schemaVersion === SESSION_SCHEMA_VERSION;
+  const sessionIsOpaque =
+    typeof rawSession.schemaVersion === 'number' &&
+    rawSession.schemaVersion > SESSION_SCHEMA_VERSION;
   if (!sessionSchemaSupported) repair('session.schemaVersion');
   const readableMatch = sessionSchemaSupported ? rawMatch : {};
   const readableAudibility = sessionSchemaSupported ? rawAudibility : {};
@@ -573,9 +589,18 @@ export function decodeWorkspaceDocument(
   const whiteNoiseSchemaSupported =
     sessionSchemaSupported &&
     rawWhiteNoise.schemaVersion === FILTER_SETTINGS_SCHEMA_VERSION;
+  const whiteNoiseIsOpaque =
+    typeof rawWhiteNoise.schemaVersion === 'number' &&
+    rawWhiteNoise.schemaVersion > FILTER_SETTINGS_SCHEMA_VERSION;
   const decorrelatingAMSchemaSupported =
     sessionSchemaSupported &&
     rawDecorrelatingAM.schemaVersion === FILTER_SETTINGS_SCHEMA_VERSION;
+  const decorrelatingAMIsOpaque =
+    typeof rawDecorrelatingAM.schemaVersion === 'number' &&
+    rawDecorrelatingAM.schemaVersion > FILTER_SETTINGS_SCHEMA_VERSION;
+  if (sessionIsOpaque || whiteNoiseIsOpaque || decorrelatingAMIsOpaque) {
+    return { kind: 'recovery', reason: 'newer-version', rawValue };
+  }
   if (!whiteNoiseSchemaSupported) {
     repair('session.filterSettings.white-noise.schemaVersion');
   }
@@ -700,11 +725,14 @@ export function decodeWorkspaceDocument(
     preservedRaw: {
       root: cloneJsonValue(parsed),
       session: cloneJsonValue(rawSession),
+      sessionIsOpaque,
       tinnitusMatch: cloneJsonValue(rawMatch),
       audibility: cloneJsonValue(rawAudibility),
       filterSettings: cloneJsonValue(rawFilterSettings),
       whiteNoise: cloneJsonValue(rawWhiteNoise),
+      whiteNoiseIsOpaque,
       decorrelatingAM: cloneJsonValue(rawDecorrelatingAM),
+      decorrelatingAMIsOpaque,
     },
   };
 

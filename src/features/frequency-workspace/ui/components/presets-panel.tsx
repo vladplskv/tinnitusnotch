@@ -39,7 +39,7 @@ export function PresetsPanel(props: PresetsPanelProps) {
             id="preset-name"
             class="text-input"
             type="text"
-            maxlength="80"
+            maxlength="60"
             value={name()}
             onInput={event => setName(event.currentTarget.value)}
             onKeyDown={event => {
@@ -68,7 +68,12 @@ export function PresetsPanel(props: PresetsPanelProps) {
             {entry => (
               <Show
                 when={entry.kind === 'available' ? entry.preset : null}
-                fallback={<UnavailablePresetCard entry={entry} />}
+                fallback={
+                  <UnavailablePresetCard
+                    entry={entry}
+                    dispatch={props.dispatch}
+                  />
+                }
               >
                 {preset => (
                   <PresetCard
@@ -114,7 +119,7 @@ function PresetCard(props: PresetCardProps) {
           id={`preset-${props.preset.id}-name`}
           class="preset-card__name"
           value={name()}
-          maxlength="80"
+          maxlength="60"
           onInput={event => setName(event.currentTarget.value)}
         />
         <Show when={props.dirty}>
@@ -135,7 +140,7 @@ function PresetCard(props: PresetCardProps) {
         <Button
           type="button"
           size="sm"
-          disabled={!props.canLoad}
+          disabled={!props.canLoad || props.loaded}
           onClick={() =>
             props.dispatch({ type: 'load-preset', id: props.preset.id })
           }
@@ -197,6 +202,7 @@ function PresetCard(props: PresetCardProps) {
 
 function UnavailablePresetCard(props: {
   readonly entry: WorkspacePresetEntry;
+  readonly dispatch: (intent: WorkspaceIntent) => void;
 }) {
   if (props.entry.kind === 'available') return null;
 
@@ -215,6 +221,19 @@ function UnavailablePresetCard(props: {
       <p class="preset-card__meta">
         {reason}. Исходные данные сохранены без изменений.
       </p>
+      <div class="button-row">
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          onClick={() => {
+            if (props.entry.kind === 'available') return;
+            props.dispatch({ type: 'delete-preset', id: props.entry.id });
+          }}
+        >
+          Удалить
+        </Button>
+      </div>
     </article>
   );
 }

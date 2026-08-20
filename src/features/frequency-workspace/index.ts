@@ -24,21 +24,5 @@ export type {
 } from './model/types';
 export type {
   SpectrumFrameMetadata,
-  TherapyPlayback,
-  TherapyPlaybackIntent,
   TherapyPlaybackSnapshot,
 } from './playback/contracts';
-export type {
-  PlaybackSourceConfiguration,
-  PlaybackSourceFactory,
-  RunningPlaybackSource,
-} from './playback/sources/contracts';
-export type {
-  WorkspaceDocumentCommitRequest,
-  WorkspaceDocumentCommitResult,
-  WorkspaceDocumentExternalChange,
-  WorkspaceDocumentLoadResult,
-  WorkspaceDocumentRemoveResult,
-  WorkspaceDocumentStore,
-} from './persistence/workspace-document-store';
-export { WORKSPACE_STORAGE_KEY } from './persistence/workspace-document-store';

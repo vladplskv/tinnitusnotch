@@ -135,6 +135,58 @@ describe('workspace document', () => {
     );
   });
 
+  it('keeps a newer session payload opaque until a confirmed reset', () => {
+    const source = JSON.parse(
+      encodeWorkspaceDocument(createInitialWorkspaceDocument()),
+    );
+    const newerSession = {
+      schemaVersion: 2,
+      tinnitusMatch: {
+        frequencyHz: 12_345,
+        type: 'future-type',
+        futureMatching: { exact: true },
+      },
+      masterGain: { futureScale: 10 },
+      selectedFilterId: 'future-filter',
+      filterSettings: { future: { schemaVersion: 3, payload: [1, 2, 3] } },
+      opaqueSessionField: 'keep-exactly',
+    };
+    source.session = newerSession;
+
+    const rawValue = JSON.stringify(source);
+    expect(decodeWorkspaceDocument(rawValue)).toEqual({
+      kind: 'recovery',
+      reason: 'newer-version',
+      rawValue,
+    });
+  });
+
+  it('keeps newer known filter settings opaque until a confirmed reset', () => {
+    const source = JSON.parse(
+      encodeWorkspaceDocument(createInitialWorkspaceDocument()),
+    );
+    const newerWhiteNoise = {
+      schemaVersion: 2,
+      q: { futureShape: 7 },
+      futureNotch: ['keep', 'exactly'],
+    };
+    const newerDecorrelatingAM = {
+      schemaVersion: 3,
+      hearingCorrection: { futureCurve: 'x' },
+      confirmedProjectionHz: 'future-projection',
+      futureDsp: { payload: [4, 5, 6] },
+    };
+    source.session.filterSettings['white-noise'] = newerWhiteNoise;
+    source.session.filterSettings['decorrelating-am'] = newerDecorrelatingAM;
+
+    const rawValue = JSON.stringify(source);
+    expect(decodeWorkspaceDocument(rawValue)).toEqual({
+      kind: 'recovery',
+      reason: 'newer-version',
+      rawValue,
+    });
+  });
+
   it('exposes valid and unavailable presets while preserving unavailable payloads exactly', () => {
     const source = JSON.parse(
       encodeWorkspaceDocument(createInitialWorkspaceDocument()),

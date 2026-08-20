@@ -55,8 +55,8 @@ button.addEventListener('click', async () => {
   );
 
   await build({
-    configFile: resolve(projectRoot, 'vite.config.ts'),
-    root: projectRoot,
+    configFile: false,
+    root: temporaryRoot,
     logLevel: 'silent',
     build: {
       emptyOutDir: true,
