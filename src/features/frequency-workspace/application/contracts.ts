@@ -63,7 +63,7 @@ export type WorkspacePresetEntry =
       readonly id: string;
       readonly name: string;
       readonly updatedAt: number;
-      readonly reason: 'unknown-filter' | 'newer-version';
+      readonly reason: 'unknown-filter' | 'newer-version' | 'invalid-data';
     };
 
 export type PendingWorkspaceConfirmation =
