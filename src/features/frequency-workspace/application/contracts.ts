@@ -90,6 +90,7 @@ export interface WorkspaceSnapshot {
   readonly phase: WorkspacePhase;
   readonly session: TherapySession | null;
   readonly previewFrequencyHz: number | null;
+  readonly filters: readonly TherapyFilterDescription[];
   readonly selectedFilter: TherapyFilterDescription | null;
   readonly presets: readonly WorkspacePresetEntry[];
   readonly dirtyPresetId: string | null;

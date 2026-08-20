@@ -4,6 +4,7 @@ const BOOTING_SNAPSHOT: WorkspaceSnapshot = Object.freeze({
   phase: 'booting',
   session: null,
   previewFrequencyHz: null,
+  filters: Object.freeze([]),
   selectedFilter: null,
   presets: Object.freeze([]),
   dirtyPresetId: null,
