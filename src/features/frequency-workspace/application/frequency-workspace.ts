@@ -7,6 +7,7 @@ const BOOTING_SNAPSHOT: WorkspaceSnapshot = Object.freeze({
   filters: Object.freeze([]),
   selectedFilter: null,
   presets: Object.freeze([]),
+  loadedPresetId: null,
   dirtyPresetId: null,
   playback: Object.freeze({
     status: 'stopped',
@@ -30,6 +31,7 @@ const BOOTING_SNAPSHOT: WorkspaceSnapshot = Object.freeze({
   capabilities: Object.freeze({
     canEdit: false,
     canPreviewMatchingStimulus: false,
+    canPreviewHearingCorrection: false,
     canStart: false,
     canPause: false,
     canContinue: false,

@@ -1,4 +1,5 @@
 import type {
+  HearingCorrectionId,
   TherapyFilterId,
   TherapySession,
   TinnitusMatch,
@@ -38,6 +39,10 @@ export type TherapyPlaybackSource =
   | { readonly kind: 'none' }
   | { readonly kind: 'matching-stimulus' }
   | {
+      readonly kind: 'hearing-correction-preview';
+      readonly hearingCorrection: HearingCorrectionId;
+    }
+  | {
       readonly kind: 'therapy-filter';
       readonly filterId: TherapyFilterId;
     };
@@ -53,6 +58,11 @@ export type TherapyPlaybackIntent =
   | {
       readonly type: 'preview-matching-stimulus';
       readonly match: TinnitusMatch;
+      readonly masterGain: number;
+    }
+  | {
+      readonly type: 'preview-hearing-correction';
+      readonly hearingCorrection: HearingCorrectionId;
       readonly masterGain: number;
     }
   | { readonly type: 'start-therapy'; readonly session: TherapySession }

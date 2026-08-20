@@ -1,4 +1,5 @@
 import type {
+  HearingCorrectionId,
   TherapyFilterId,
   TherapySession,
   TinnitusMatch,
@@ -8,6 +9,10 @@ export type PlaybackSourceConfiguration =
   | {
       readonly kind: 'matching-stimulus';
       readonly match: TinnitusMatch;
+    }
+  | {
+      readonly kind: 'hearing-correction-preview';
+      readonly hearingCorrection: HearingCorrectionId;
     }
   | {
       readonly kind: 'therapy-filter';

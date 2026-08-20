@@ -32,6 +32,7 @@ export interface WorkspaceNotification {
 export interface WorkspaceCapabilities {
   readonly canEdit: boolean;
   readonly canPreviewMatchingStimulus: boolean;
+  readonly canPreviewHearingCorrection: boolean;
   readonly canStart: boolean;
   readonly canPause: boolean;
   readonly canContinue: boolean;
@@ -93,6 +94,7 @@ export interface WorkspaceSnapshot {
   readonly filters: readonly TherapyFilterDescription[];
   readonly selectedFilter: TherapyFilterDescription | null;
   readonly presets: readonly WorkspacePresetEntry[];
+  readonly loadedPresetId: string | null;
   readonly dirtyPresetId: string | null;
   readonly playback: TherapyPlaybackSnapshot;
   readonly persistence: WorkspacePersistenceSnapshot;
@@ -118,6 +120,10 @@ export type WorkspaceIntent =
       readonly value: HearingCorrectionId;
     }
   | { readonly type: 'preview-matching-stimulus' }
+  | {
+      readonly type: 'preview-hearing-correction';
+      readonly value: HearingCorrectionId;
+    }
   | { readonly type: 'start-therapy' }
   | { readonly type: 'pause-therapy' }
   | { readonly type: 'continue-therapy' }
