@@ -1,5 +1,14 @@
 {
-  "ignorePatterns": [".agents/**", ".codex/**", ".git/**"],
+  "ignorePatterns": [
+    ".agents/**",
+    ".codex/**",
+    ".git/**",
+    ".scratch/**",
+    "dist/**",
+    "node_modules/**",
+    "playwright-report/**",
+    "test-results/**",
+  ],
   "printWidth": 80,
   "singleQuote": true,
   "trailingComma": "all",

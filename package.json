@@ -10,11 +10,19 @@
     "serve": "vite preview",
     "deploy": "pnpm run build && wrangler deploy",
     "preview": "pnpm run build && wrangler dev",
+    "format": "oxfmt src package.json playwright.config.ts tsconfig.json vite.config.ts vitest.config.ts wrangler.jsonc",
+    "format:check": "oxfmt --check src package.json playwright.config.ts tsconfig.json vite.config.ts vitest.config.ts wrangler.jsonc",
+    "lint": "oxlint src tests vite.config.ts vitest.config.ts playwright.config.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "license": "MIT",
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "@solidjs/vite-plugin": "^3.0.0-next.28",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.2.0",
@@ -28,10 +36,7 @@
   },
   "dependencies": {
     "@kobalte/core": "^2.0.0-alpha.0",
-    "@solid-primitives/mouse": "^4.0.0-next.3",
-    "@solid-primitives/raf": "^4.0.0-next.2",
     "@solid-primitives/selection": "^1.0.0-next.2",
-    "@solid-primitives/storage": "^5.0.0-next.4",
     "@solidjs/router": "^2.0.0-next.16",
     "@solidjs/web": "^2.0.0-rc.0",
     "class-variance-authority": "^0.7.1",
