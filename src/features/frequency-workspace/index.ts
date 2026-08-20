@@ -5,6 +5,7 @@ export type {
   WorkspaceIntent,
   WorkspaceNotification,
   WorkspacePersistenceSnapshot,
+  WorkspacePresetEntry,
   WorkspaceSnapshot,
 } from './application/contracts';
 export { createFrequencyWorkspace } from './application/frequency-workspace';

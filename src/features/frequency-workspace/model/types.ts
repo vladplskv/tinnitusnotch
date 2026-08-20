@@ -17,7 +17,7 @@ export interface WhiteNoiseSettings {
 }
 
 export interface DecorrelatingAMSettings {
-  readonly hearingCorrection: HearingCorrectionId;
+  readonly hearingCorrection: HearingCorrectionId | null;
   readonly confirmedProjectionHz: number | null;
 }
 

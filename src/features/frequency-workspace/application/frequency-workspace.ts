@@ -59,6 +59,10 @@ export function createFrequencyWorkspace(): FrequencyWorkspace {
       // Wave zero exposes a safe, disabled shell. Application behavior lands
       // after model, persistence, and playback adapters satisfy their seams.
     },
+    readSpectrum(target) {
+      target.fill(0);
+      return BOOTING_SNAPSHOT.playback.spectrum;
+    },
     async dispose() {
       if (disposed) {
         return;

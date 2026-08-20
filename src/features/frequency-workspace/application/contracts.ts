@@ -7,7 +7,10 @@ import type {
   TherapySession,
   TinnitusType,
 } from '../model/types';
-import type { TherapyPlaybackSnapshot } from '../playback/contracts';
+import type {
+  SpectrumFrameMetadata,
+  TherapyPlaybackSnapshot,
+} from '../playback/contracts';
 
 export type WorkspacePhase = 'booting' | 'ready' | 'recovery';
 
@@ -50,6 +53,19 @@ export interface WorkspacePersistenceSnapshot {
   readonly errorCode: WorkspaceErrorCode | null;
 }
 
+export type WorkspacePresetEntry =
+  | {
+      readonly kind: 'available';
+      readonly preset: TherapyPreset;
+    }
+  | {
+      readonly kind: 'unavailable';
+      readonly id: string;
+      readonly name: string;
+      readonly updatedAt: number;
+      readonly reason: 'unknown-filter' | 'newer-version';
+    };
+
 export type PendingWorkspaceConfirmation =
   | {
       readonly kind: 'am-projection';
@@ -75,7 +91,7 @@ export interface WorkspaceSnapshot {
   readonly session: TherapySession | null;
   readonly previewFrequencyHz: number | null;
   readonly selectedFilter: TherapyFilterDescription | null;
-  readonly presets: readonly TherapyPreset[];
+  readonly presets: readonly WorkspacePresetEntry[];
   readonly dirtyPresetId: string | null;
   readonly playback: TherapyPlaybackSnapshot;
   readonly persistence: WorkspacePersistenceSnapshot;
@@ -143,5 +159,6 @@ export interface FrequencyWorkspace {
   getSnapshot(): WorkspaceSnapshot;
   subscribe(listener: (snapshot: WorkspaceSnapshot) => void): () => void;
   dispatch(intent: WorkspaceIntent): void;
+  readSpectrum(target: Float32Array): SpectrumFrameMetadata;
   dispose(): Promise<void>;
 }
