@@ -91,20 +91,14 @@ function sourceForConfiguration(
   return { kind: 'therapy-filter', filterId: configuration.filterId };
 }
 
-function isSameFilterSettings(
+function requiresExplicitRestart(
   previous: TherapySession,
   next: TherapySession,
 ): boolean {
-  if (previous.selectedFilterId === 'white-noise') {
-    return (
-      previous.filterSettings['white-noise'].q ===
-      next.filterSettings['white-noise'].q
-    );
-  }
-
   return (
-    previous.filterSettings['decorrelating-am'].hearingCorrection ===
-    next.filterSettings['decorrelating-am'].hearingCorrection
+    previous.selectedFilterId === 'decorrelating-am' &&
+    previous.filterSettings['decorrelating-am'].hearingCorrection !==
+      next.filterSettings['decorrelating-am'].hearingCorrection
   );
 }
 
@@ -472,7 +466,7 @@ export function createTherapyPlayback(
       return;
     }
 
-    if (!isSameFilterSettings(active.configuration.session, session)) {
+    if (requiresExplicitRestart(active.configuration.session, session)) {
       await stopActive(true);
       return;
     }

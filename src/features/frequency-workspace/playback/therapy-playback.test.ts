@@ -330,6 +330,43 @@ describe('Therapy Playback', () => {
     expect(secondSource.dispose).toHaveBeenCalledOnce();
   });
 
+  it('applies supported White Noise settings without stopping playback', async () => {
+    const context = new FakeAudioContext();
+    const source: RunningPlaybackSource = {
+      applyLiveConfiguration: vi.fn(() => ({ kind: 'applied' as const })),
+      dispose: vi.fn(async () => undefined),
+    };
+    const factory: PlaybackSourceFactory = {
+      capabilities: {
+        liveFrequency: true,
+        liveMasterGain: true,
+        liveFilterSettings: true,
+      },
+      create: vi.fn(async () => source),
+    };
+    const playback = createTherapyPlayback(dependencies(context, factory));
+
+    playback.dispatch({ type: 'start-therapy', session: SESSION });
+    await waitForStatus(playback, 'playing');
+    playback.dispatch({
+      type: 'apply-live-session',
+      session: {
+        ...SESSION,
+        filterSettings: {
+          ...SESSION.filterSettings,
+          'white-noise': { q: 2 },
+        },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(source.applyLiveConfiguration).toHaveBeenCalledOnce(),
+    );
+
+    expect(playback.getSnapshot().status).toBe('playing');
+    expect(context.suspend).not.toHaveBeenCalled();
+    await playback.dispose();
+  });
+
   it('isolates a failed Therapy Filter until explicit Retry', async () => {
     const context = new FakeAudioContext();
     const recoveredSource: RunningPlaybackSource = {
