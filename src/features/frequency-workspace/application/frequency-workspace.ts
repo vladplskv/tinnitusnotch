@@ -60,7 +60,7 @@ export function createFrequencyWorkspace(): FrequencyWorkspace {
       // after model, persistence, and playback adapters satisfy their seams.
     },
     readSpectrum(target) {
-      target.fill(0);
+      target.fill(BOOTING_SNAPSHOT.playback.spectrum.minDecibels);
       return BOOTING_SNAPSHOT.playback.spectrum;
     },
     async dispose() {
