@@ -4,8 +4,9 @@ import type {
   WorkspaceNotification,
   WorkspacePersistenceSnapshot,
 } from '../../index';
+import { formatHz, formatHzShort } from '../format';
 import { Button } from '@/components/ui/button';
-import { For, Show } from 'solid-js';
+import { For, Show, type ParentProps } from 'solid-js';
 
 interface RecoveryPanelProps {
   readonly persistence: WorkspacePersistenceSnapshot;
@@ -14,42 +15,74 @@ interface RecoveryPanelProps {
 
 export function RecoveryPanel(props: RecoveryPanelProps) {
   return (
-    <main class="workspace-shell workspace-shell--centered">
-      <section class="recovery-panel" aria-labelledby="recovery-heading">
-        <p class="eyebrow">Local recovery</p>
-        <h1 id="recovery-heading">Не удалось безопасно прочитать настройки</h1>
+    <main class="fw fw-centered">
+      <section class="fw-notice-panel" aria-labelledby="recovery-heading">
+        <p class="fw-brand">Tinnitus Notch</p>
+        <h1 id="recovery-heading">
+          Не удалось прочитать сохранённые настройки
+        </h1>
         <p>
-          Звук не запущен. Можно скачать исходные локальные данные перед сбросом
-          или повторить чтение storage.
+          Звук не запущен, данные не изменены. Скачайте копию данных, если они
+          вам нужны, затем попробуйте снова или начните с чистого листа.
         </p>
-        <div class="button-row">
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            onClick={() => props.dispatch({ type: 'retry-persistence' })}
+          >
+            Попробовать снова
+          </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => props.dispatch({ type: 'download-recovery-data' })}
           >
-            Скачать исходные данные
+            Скачать копию данных
           </Button>
           <Button
             type="button"
-            variant="outline"
-            onClick={() => props.dispatch({ type: 'retry-persistence' })}
-          >
-            Повторить
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
+            variant="ghost"
+            class="fw-danger-text"
             onClick={() => props.dispatch({ type: 'request-reset-local-data' })}
           >
-            Сбросить локальные данные
+            Начать заново
           </Button>
         </div>
         <Show when={props.persistence.errorCode}>
-          {code => <p class="field-error">Код: {code()}</p>}
+          {code => <p class="fw-help">Код ошибки: {code()}</p>}
         </Show>
       </section>
     </main>
+  );
+}
+
+type ModalDialogProps = ParentProps<{
+  readonly labelledBy: string;
+  readonly class?: string;
+  readonly onCancel: () => void;
+}>;
+
+/** Native modal dialog: top layer, focus containment and Escape for free. */
+export function ModalDialog(props: ModalDialogProps) {
+  return (
+    <dialog
+      class={`fw-dialog ${props.class ?? ''}`}
+      aria-labelledby={props.labelledBy}
+      ref={element => {
+        queueMicrotask(() => {
+          if (element.isConnected && !element.open) element.showModal();
+        });
+      }}
+      onCancel={event => {
+        event.preventDefault();
+        props.onCancel();
+      }}
+      onClick={event => {
+        if (event.target === event.currentTarget) props.onCancel();
+      }}
+    >
+      <div class="fw-dialog__body">{props.children}</div>
+    </dialog>
   );
 }
 
@@ -59,169 +92,153 @@ interface ConfirmationPanelProps {
 }
 
 export function ConfirmationPanel(props: ConfirmationPanelProps) {
+  const cancel = () =>
+    props.dispatch({
+      type: 'cancel-confirmation',
+      confirmationId: props.confirmation.id,
+    });
+
   return (
-    <div class="confirmation-backdrop">
-      <section
-        class="confirmation-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirmation-heading"
-        tabindex="-1"
-        ref={element => {
-          queueMicrotask(() => element.focus());
-        }}
-        onKeyDown={event => {
-          if (event.key !== 'Escape') return;
-          props.dispatch({
-            type: 'cancel-confirmation',
-            confirmationId: props.confirmation.id,
-          });
-        }}
-      >
-        <Show when={props.confirmation.kind === 'am-projection'}>
-          <h2 id="confirmation-heading">Подтвердите Active Band</h2>
-          <p>
-            Точная Tinnitus Frequency:{' '}
+    <ModalDialog labelledBy="confirmation-heading" onCancel={cancel}>
+      <Show when={props.confirmation.kind === 'am-projection'}>
+        <h2 id="confirmation-heading">Подтвердите рабочую полосу</h2>
+        <p>
+          Ваша частота{' '}
+          <strong>
             {'exactFrequencyHz' in props.confirmation &&
-              props.confirmation.exactFrequencyHz}{' '}
-            Hz. De-correlating AM использует ближайшую поддерживаемую частоту{' '}
+              formatHz(props.confirmation.exactFrequencyHz)}
+          </strong>{' '}
+          остаётся без изменений. АМ-терапия будет работать с октавой вокруг
+          ближайшей поддерживаемой частоты{' '}
+          <strong>
             {'projectedFrequencyHz' in props.confirmation &&
-              props.confirmation.projectedFrequencyHz}{' '}
-            Hz.
-          </p>
-          <div class="button-row">
-            <Button
-              type="button"
-              onClick={() => {
-                if (props.confirmation.kind !== 'am-projection') return;
-                props.dispatch({
-                  type: 'confirm-am-projection',
-                  confirmationId: props.confirmation.id,
-                  originRevision: props.confirmation.originRevision,
-                });
-              }}
-            >
-              Подтвердить и применить
-            </Button>
-            <CancelConfirmation {...props} />
-          </div>
-        </Show>
+              formatHzShort(props.confirmation.projectedFrequencyHz)}
+          </strong>
+          . Если терапия уже идёт, полоса сменится плавно.
+        </p>
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            onClick={() => {
+              if (props.confirmation.kind !== 'am-projection') return;
+              props.dispatch({
+                type: 'confirm-am-projection',
+                confirmationId: props.confirmation.id,
+                originRevision: props.confirmation.originRevision,
+              });
+            }}
+          >
+            Подтвердить
+          </Button>
+          <CancelButton onClick={cancel} />
+        </div>
+      </Show>
 
-        <Show when={props.confirmation.kind === 'storage-conflict'}>
-          <h2 id="confirmation-heading">
-            Настройки изменились в другой вкладке
-          </h2>
-          <p>Выберите, какую ревизию оставить. Звук останется остановленным.</p>
-          <div class="button-row">
-            <Button
-              type="button"
-              onClick={() => resolveConflict(props, 'load-external')}
-            >
-              Загрузить внешние изменения
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => resolveConflict(props, 'overwrite-local')}
-            >
-              Оставить мои настройки
-            </Button>
-            <CancelConfirmation {...props} />
-          </div>
-        </Show>
+      <Show when={props.confirmation.kind === 'storage-conflict'}>
+        <h2 id="confirmation-heading">Настройки изменились в другой вкладке</h2>
+        <p>
+          Выберите, какую версию оставить. Пока вы не выберете, звук не
+          запустится.
+        </p>
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            onClick={() => resolveConflict(props, 'load-external')}
+          >
+            Взять из другой вкладки
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => resolveConflict(props, 'overwrite-local')}
+          >
+            Оставить эти
+          </Button>
+          <CancelButton onClick={cancel} />
+        </div>
+      </Show>
 
-        <Show when={props.confirmation.kind === 'reset-local-data'}>
-          <h2 id="confirmation-heading">Удалить текущий workspace document?</h2>
-          <p>
-            Сброс необратим внутри приложения. Сначала скачайте recovery data,
-            если они нужны.
-          </p>
-          <div class="button-row">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                if (props.confirmation.kind !== 'reset-local-data') return;
-                props.dispatch({
-                  type: 'confirm-reset-local-data',
-                  confirmationId: props.confirmation.id,
-                  originRevision: props.confirmation.originRevision,
-                });
-              }}
-            >
-              Сбросить данные
-            </Button>
-            <CancelConfirmation {...props} />
-          </div>
-        </Show>
+      <Show when={props.confirmation.kind === 'reset-local-data'}>
+        <h2 id="confirmation-heading">Удалить все сохранённые настройки?</h2>
+        <p>
+          Сессия и все пресеты в этом браузере будут удалены без возможности
+          восстановить. Если данные нужны, сначала скачайте копию.
+        </p>
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              if (props.confirmation.kind !== 'reset-local-data') return;
+              props.dispatch({
+                type: 'confirm-reset-local-data',
+                confirmationId: props.confirmation.id,
+                originRevision: props.confirmation.originRevision,
+              });
+            }}
+          >
+            Удалить всё
+          </Button>
+          <CancelButton onClick={cancel} />
+        </div>
+      </Show>
 
-        <Show when={props.confirmation.kind === 'delete-preset'}>
-          <h2 id="confirmation-heading">Удалить Therapy Preset?</h2>
-          <p>
-            Пресет «
-            {'presetName' in props.confirmation &&
-              props.confirmation.presetName}
-            » будет удалён. После удаления его можно отменить в течение десяти
-            секунд.
-          </p>
-          <div class="button-row">
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                if (props.confirmation.kind !== 'delete-preset') return;
-                props.dispatch({
-                  type: 'confirm-delete-preset',
-                  confirmationId: props.confirmation.id,
-                  originRevision: props.confirmation.originRevision,
-                });
-              }}
-            >
-              Удалить
-            </Button>
-            <CancelConfirmation {...props} />
-          </div>
-        </Show>
+      <Show when={props.confirmation.kind === 'delete-preset'}>
+        <h2 id="confirmation-heading">Удалить пресет?</h2>
+        <p>
+          Пресет «
+          {'presetName' in props.confirmation && props.confirmation.presetName}»
+          будет удалён. В течение десяти секунд удаление можно отменить.
+        </p>
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              if (props.confirmation.kind !== 'delete-preset') return;
+              props.dispatch({
+                type: 'confirm-delete-preset',
+                confirmationId: props.confirmation.id,
+                originRevision: props.confirmation.originRevision,
+              });
+            }}
+          >
+            Удалить
+          </Button>
+          <CancelButton onClick={cancel} />
+        </div>
+      </Show>
 
-        <Show when={props.confirmation.kind === 'discard-preset-edits'}>
-          <h2 id="confirmation-heading">Отбросить несохранённые изменения?</h2>
-          <p>
-            Текущие изменения Therapy Session не сохранены в загруженный пресет.
-          </p>
-          <div class="button-row">
-            <Button
-              type="button"
-              onClick={() => {
-                if (props.confirmation.kind !== 'discard-preset-edits') return;
-                props.dispatch({
-                  type: 'confirm-discard-preset-edits',
-                  confirmationId: props.confirmation.id,
-                  originRevision: props.confirmation.originRevision,
-                });
-              }}
-            >
-              Отбросить и продолжить
-            </Button>
-            <CancelConfirmation {...props} />
-          </div>
-        </Show>
-      </section>
-    </div>
+      <Show when={props.confirmation.kind === 'discard-preset-edits'}>
+        <h2 id="confirmation-heading">Отбросить несохранённые изменения?</h2>
+        <p>
+          Вы меняли настройки открытого пресета и не сохранили их. Если
+          продолжить, эти изменения пропадут.
+        </p>
+        <div class="fw-button-row">
+          <Button
+            type="button"
+            onClick={() => {
+              if (props.confirmation.kind !== 'discard-preset-edits') return;
+              props.dispatch({
+                type: 'confirm-discard-preset-edits',
+                confirmationId: props.confirmation.id,
+                originRevision: props.confirmation.originRevision,
+              });
+            }}
+          >
+            Отбросить
+          </Button>
+          <CancelButton onClick={cancel} />
+        </div>
+      </Show>
+    </ModalDialog>
   );
 }
 
-function CancelConfirmation(props: ConfirmationPanelProps) {
+function CancelButton(props: { readonly onClick: () => void }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      onClick={() =>
-        props.dispatch({
-          type: 'cancel-confirmation',
-          confirmationId: props.confirmation.id,
-        })
-      }
-    >
+    <Button type="button" variant="ghost" onClick={() => props.onClick()}>
       Отмена
     </Button>
   );
@@ -247,18 +264,15 @@ interface NotificationCenterProps {
 
 export function NotificationCenter(props: NotificationCenterProps) {
   return (
-    <div
-      class="notification-center"
-      aria-live="polite"
-      aria-relevant="additions"
-    >
+    <div class="fw-toasts" aria-live="polite" aria-relevant="additions">
       <For each={props.notifications}>
         {notification => (
           <div
-            class={`notification notification--${notification.kind}`}
+            class="fw-toast"
+            data-kind={notification.kind}
             role={notification.kind === 'error' ? 'alert' : 'status'}
           >
-            <span>{notificationText(notification)}</span>
+            <span class="fw-toast__text">{notificationText(notification)}</span>
             <Show
               when={
                 notification.code === 'preset-deleted' && notification.field
@@ -269,7 +283,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
               {presetId => (
                 <button
                   type="button"
-                  class="notification__action"
+                  class="fw-toast__action"
                   onClick={() =>
                     props.dispatch({
                       type: 'undo-delete-preset',
@@ -277,12 +291,13 @@ export function NotificationCenter(props: NotificationCenterProps) {
                     })
                   }
                 >
-                  Отменить
+                  Вернуть
                 </button>
               )}
             </Show>
             <button
               type="button"
+              class="fw-toast__close"
               aria-label="Закрыть уведомление"
               onClick={() =>
                 props.dispatch({
@@ -302,14 +317,16 @@ export function NotificationCenter(props: NotificationCenterProps) {
 
 function notificationText(notification: WorkspaceNotification): string {
   const messages: Readonly<Record<string, string>> = {
-    'preset-created': 'Therapy Preset сохранён.',
-    'preset-updated': 'Therapy Preset обновлён.',
-    'preset-deleted': 'Therapy Preset удалён.',
-    'preset-restored': 'Therapy Preset восстановлен.',
-    'storage-repaired': 'Некорректные поля заменены безопасными значениями.',
-    'storage-unavailable': 'Локальное сохранение сейчас недоступно.',
-    'revision-conflict': 'Обнаружены изменения из другой вкладки.',
-    'am-projection-applied': 'Новый Active Band применён.',
+    'preset-created': 'Пресет сохранён.',
+    'preset-updated': 'Изменения пресета сохранены.',
+    'preset-deleted': 'Пресет удалён.',
+    'preset-restored': 'Пресет возвращён.',
+    'storage-repaired':
+      'Часть сохранённых значений была повреждена и заменена безопасными.',
+    'storage-unavailable':
+      'Браузер не даёт сохранять настройки. Они действуют, пока открыта вкладка.',
+    'revision-conflict': 'Настройки изменились в другой вкладке.',
+    'am-projection-applied': 'Рабочая полоса подтверждена.',
   };
   return messages[notification.code] ?? notification.code;
 }

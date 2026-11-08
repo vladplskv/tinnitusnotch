@@ -61,9 +61,25 @@ describe('Therapy Filter visualization descriptions', () => {
     });
   });
 
-  test('describes only the confirmed AM Active Band', () => {
+  test('centres the White Noise notch on the dragged preview frequency', () => {
+    const description = buildVisualizationDescription(
+      baseSession,
+      stoppedPlayback,
+      6_000,
+    );
+
+    expect(description.bands[0]).toEqual(
+      expect.objectContaining({
+        fromHz: expect.closeTo(3_708.2, 0),
+        toHz: expect.closeTo(9_708.2, 0),
+      }),
+    );
+  });
+
+  test('describes the Active Band that AM playback will use', () => {
     const session: TherapySession = {
       ...baseSession,
+      tinnitusMatch: { ...baseSession.tinnitusMatch, frequencyHz: 4_000 },
       selectedFilterId: 'decorrelating-am',
     };
 
@@ -71,14 +87,41 @@ describe('Therapy Filter visualization descriptions', () => {
       expect.objectContaining({
         bands: [
           expect.objectContaining({
-            fromHz: expect.closeTo(2_828.4, 0),
-            toHz: expect.closeTo(5_656.9, 0),
+            fromHz: 2_800,
+            toHz: 5_700,
             label: 'Confirmed Active Band',
           }),
         ],
         responseCurves: [],
       }),
     );
+  });
+
+  test('draws no AM band for a stale or blocked confirmation', () => {
+    const stale: TherapySession = {
+      ...baseSession,
+      selectedFilterId: 'decorrelating-am',
+    };
+    const blocked: TherapySession = {
+      ...stale,
+      tinnitusMatch: {
+        ...baseSession.tinnitusMatch,
+        frequencyHz: 4_000,
+        audibilityByFrequencyHz: Object.fromEntries(
+          [
+            1_000, 1_200, 1_400, 1_700, 2_000, 2_400, 2_800, 3_400, 4_000,
+            4_800, 5_700, 6_700, 8_000, 9_500, 11_000, 13_000, 16_000,
+          ].map(hz => [String(hz), 'inaudible' as const]),
+        ),
+      },
+    };
+
+    expect(buildVisualizationDescription(stale, stoppedPlayback).bands).toEqual(
+      [],
+    );
+    expect(
+      buildVisualizationDescription(blocked, stoppedPlayback).bands,
+    ).toEqual([]);
   });
 
   test('marks the configured effect as future therapy during a Matching Stimulus', () => {

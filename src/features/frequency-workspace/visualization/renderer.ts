@@ -1,4 +1,4 @@
-import { frequencyPosition, formatFrequency } from './frequency-scale';
+import { frequencyPosition } from './frequency-scale';
 import type { VisualizationDescription } from './overlays';
 
 export interface FrequencyVisualizationFrame {
@@ -12,8 +12,26 @@ export interface FrequencyVisualizationFrame {
   readonly transitionProgress?: number;
 }
 
-const PLOT_TOP = 24;
-const PLOT_BOTTOM = 34;
+const PLOT_TOP = 10;
+const PLOT_BOTTOM = 26;
+
+/* Palette shared with the workspace CSS tokens: tone is the person's
+   frequency, sound is everything the therapy plays or removes. */
+const COLORS = {
+  well: '#141413',
+  grid: 'rgba(238, 238, 234, 0.16)',
+  axis: 'rgba(238, 238, 234, 0.55)',
+  tone: '#ff7f11',
+  sound: '#eeeeea',
+  soundFill: 'rgba(238, 238, 234, 0.06)',
+  soundHatch: 'rgba(238, 238, 234, 0.16)',
+  spectrum: 'rgba(238, 238, 234, 0.85)',
+} as const;
+const CANVAS_FONT = 'Onest, system-ui, sans-serif';
+
+function axisLabel(frequencyHz: number): string {
+  return frequencyHz < 1_000 ? `${frequencyHz}` : `${frequencyHz / 1_000}к`;
+}
 
 export function drawFrequencyVisualization(
   context: CanvasRenderingContext2D,
@@ -21,7 +39,7 @@ export function drawFrequencyVisualization(
 ): void {
   const { width, height } = frame;
   context.clearRect(0, 0, width, height);
-  context.fillStyle = '#111827';
+  context.fillStyle = COLORS.well;
   context.fillRect(0, 0, width, height);
 
   drawGrid(context, width, height, frame.minDecibels, frame.maxDecibels);
@@ -62,36 +80,38 @@ function drawGrid(
   maxDecibels: number,
 ) {
   context.save();
-  context.strokeStyle = 'rgba(148, 163, 184, 0.16)';
-  context.fillStyle = '#94a3b8';
-  context.font = '11px system-ui, sans-serif';
+  context.strokeStyle = COLORS.grid;
+  context.fillStyle = COLORS.axis;
+  context.font = `11px ${CANVAS_FONT}`;
   context.lineWidth = 1;
+  // Dotted rules read as a dot-matrix display grid.
+  context.setLineDash([1, 3]);
 
-  for (const decibels of [-100, -75, -50, -25, 0]) {
-    const y = decibelPosition(decibels, height, minDecibels, maxDecibels);
+  for (const decibels of [-75, -50, -25]) {
+    const y =
+      Math.round(decibelPosition(decibels, height, minDecibels, maxDecibels)) +
+      0.5;
     context.beginPath();
     context.moveTo(0, y);
     context.lineTo(width, y);
     context.stroke();
-    if (decibels === -100 || decibels === -50 || decibels === 0) {
-      context.textAlign = 'right';
-      context.fillText(`${decibels} dB`, width - 5, Math.max(11, y - 4));
-    }
   }
 
   const ticks =
     width < 480
-      ? [20, 200, 2_000, 22_000]
-      : [20, 100, 500, 2_000, 8_000, 22_000];
+      ? [125, 500, 2_000, 8_000]
+      : [63, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
+  context.textAlign = 'center';
   for (const frequencyHz of ticks) {
-    const x = frequencyPosition(frequencyHz, width);
+    const x = Math.round(frequencyPosition(frequencyHz, width)) + 0.5;
     context.beginPath();
     context.moveTo(x, PLOT_TOP);
     context.lineTo(x, height - PLOT_BOTTOM);
     context.stroke();
-    context.textAlign = x === 0 ? 'left' : x >= width ? 'right' : 'center';
-    context.fillText(formatFrequency(frequencyHz), x, height - 10);
+    context.fillText(axisLabel(frequencyHz), x, height - 9);
   }
+  context.textAlign = 'right';
+  context.fillText('Гц', width - 6, height - 9);
   context.restore();
 }
 
@@ -108,55 +128,51 @@ function drawDescription(
   for (const band of description.bands) {
     const fromX = frequencyPosition(band.fromHz, width);
     const toX = frequencyPosition(band.toHz, width);
-    context.fillStyle =
-      band.pattern === 'hatched'
-        ? 'rgba(251, 191, 36, 0.12)'
-        : 'rgba(129, 140, 248, 0.18)';
+    context.fillStyle = COLORS.soundFill;
     context.fillRect(
       fromX,
       PLOT_TOP,
       Math.max(1, toX - fromX),
       height - PLOT_TOP - PLOT_BOTTOM,
     );
-    context.strokeStyle = band.pattern === 'hatched' ? '#fbbf24' : '#818cf8';
-    context.setLineDash(band.line === 'dashed' ? [7, 6] : []);
-    context.strokeRect(
-      fromX,
-      PLOT_TOP,
-      Math.max(1, toX - fromX),
-      height - PLOT_TOP - PLOT_BOTTOM,
-    );
-    context.fillStyle = band.pattern === 'hatched' ? '#fcd34d' : '#a5b4fc';
-    context.font = '600 11px system-ui, sans-serif';
-    context.textAlign = 'left';
-    context.fillText(
-      band.label,
-      Math.max(6, Math.min(width - 6, fromX + 6)),
-      PLOT_TOP + 15,
-    );
+    context.strokeStyle = COLORS.sound;
+    context.globalAlpha = alpha * 0.55;
+    context.setLineDash(band.line === 'dashed' ? [5, 5] : []);
+    for (const x of [fromX, toX]) {
+      context.beginPath();
+      context.moveTo(Math.round(x) + 0.5, PLOT_TOP);
+      context.lineTo(Math.round(x) + 0.5, height - PLOT_BOTTOM);
+      context.stroke();
+    }
+    context.globalAlpha = alpha;
 
     if (band.pattern === 'hatched') {
-      context.strokeStyle = 'rgba(251, 191, 36, 0.32)';
+      context.save();
+      context.beginPath();
+      context.rect(
+        fromX,
+        PLOT_TOP,
+        Math.max(1, toX - fromX),
+        height - PLOT_TOP - PLOT_BOTTOM,
+      );
+      context.clip();
+      context.strokeStyle = COLORS.soundHatch;
       context.setLineDash([]);
-      for (let x = fromX - height; x < toX; x += 12) {
+      const plotHeight = height - PLOT_TOP - PLOT_BOTTOM;
+      for (let x = fromX - plotHeight; x < toX; x += 9) {
         context.beginPath();
-        context.moveTo(
-          Math.max(fromX, x),
-          Math.min(height - PLOT_BOTTOM, PLOT_TOP + fromX - x),
-        );
-        context.lineTo(
-          Math.min(toX, x + height),
-          Math.max(PLOT_TOP, height - PLOT_BOTTOM - (x + height - toX)),
-        );
+        context.moveTo(x, height - PLOT_BOTTOM);
+        context.lineTo(x + plotHeight, PLOT_TOP);
         context.stroke();
       }
+      context.restore();
     }
   }
 
   for (const curve of description.responseCurves) {
-    context.strokeStyle = '#fbbf24';
-    context.lineWidth = 2;
-    context.setLineDash(curve.line === 'dashed' ? [7, 6] : []);
+    context.strokeStyle = COLORS.sound;
+    context.lineWidth = 1.5;
+    context.setLineDash(curve.line === 'dashed' ? [5, 5] : []);
     context.beginPath();
     curve.points.forEach((point, index) => {
       const x = frequencyPosition(point.frequencyHz, width);
@@ -178,12 +194,9 @@ function drawSpectrum(
   maxDecibels: number,
 ) {
   context.save();
-  const gradient = context.createLinearGradient(0, PLOT_TOP, 0, height);
-  gradient.addColorStop(0, 'rgba(165, 180, 252, 0.8)');
-  gradient.addColorStop(1, 'rgba(49, 46, 129, 0.04)');
-  context.fillStyle = gradient;
-  context.strokeStyle = '#c7d2fe';
-  context.lineWidth = 2;
+  context.strokeStyle = COLORS.spectrum;
+  context.lineWidth = 1.5;
+  context.lineJoin = 'round';
   context.beginPath();
   let started = false;
   for (let x = 0; x < spectrum.length; x += 1) {
@@ -209,18 +222,18 @@ function drawMarkers(
   height: number,
 ) {
   context.save();
-  context.strokeStyle = '#f8fafc';
-  context.fillStyle = '#f8fafc';
+  context.strokeStyle = COLORS.tone;
+  context.fillStyle = COLORS.tone;
   context.lineWidth = 2;
-  context.font = '600 12px system-ui, sans-serif';
   for (const marker of description.markers) {
-    const x = frequencyPosition(marker.frequencyHz, width);
+    const x = Math.round(frequencyPosition(marker.frequencyHz, width));
     context.beginPath();
     context.moveTo(x, PLOT_TOP);
     context.lineTo(x, height - PLOT_BOTTOM);
     context.stroke();
-    context.textAlign = x < 70 ? 'left' : x > width - 70 ? 'right' : 'center';
-    context.fillText(formatFrequency(marker.frequencyHz), x, 16);
+    context.beginPath();
+    context.arc(x, PLOT_TOP, 4, 0, Math.PI * 2);
+    context.fill();
   }
   context.restore();
 }

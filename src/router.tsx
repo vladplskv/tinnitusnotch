@@ -15,14 +15,14 @@ function LegacyRouteRedirect() {
 
   return (
     <main class="grid min-h-dvh place-items-center p-6">
-      <p class="text-muted-foreground text-sm">
-        Открываем Frequency Workspace…
-      </p>
+      <p class="text-muted-foreground text-sm">Открываем приложение…</p>
     </main>
   );
 }
 
 export const Router = createRouter({
+  /* GitHub Pages serves the app under /<repo>/ (BASE_PATH at build time). */
+  base: import.meta.env.BASE_URL.replace(/\/$/, ''),
   routes: [
     {
       path: '/',

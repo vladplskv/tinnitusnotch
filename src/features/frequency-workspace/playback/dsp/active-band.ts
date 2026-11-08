@@ -1,4 +1,5 @@
-import type { TinnitusMatch } from '../../model/types';
+import { getNearestAMProjectionHz } from '../../model/session';
+import type { TherapySession, TinnitusMatch } from '../../model/types';
 
 import type { FrequencyBandHz } from './paper-2025-v1';
 
@@ -100,4 +101,61 @@ export function resolvePaper2025V1ActiveBand(
   }
 
   return { kind: 'resolved', bandHz: fallback };
+}
+
+/**
+ * What De-correlating AM will modulate for the session, for display. The
+ * band follows the projection nearest to the Tinnitus Frequency; it counts
+ * only when the user confirmed that projection. While audibility is still
+ * incomplete the primary band is shown; a neighbouring band replaces it when
+ * the primary one touches an inaudible frequency, and AM is blocked when no
+ * band is left.
+ */
+export interface ActiveBandStatus {
+  /** Control frequency nearest to the Tinnitus Frequency. */
+  readonly projectionHz: number;
+  /** The projection the user confirmed, possibly for an older frequency. */
+  readonly confirmedProjectionHz: number | null;
+  readonly confirmed: boolean;
+  /** The band this projection prefers when every frequency is audible. */
+  readonly primaryBandHz: FrequencyBandHz | null;
+  /** The band playback would use, or the primary one while it is unknown. */
+  readonly bandHz: FrequencyBandHz | null;
+  /** A neighbouring band replaced the primary one. */
+  readonly fallback: boolean;
+  /** Confirmed, but every usable band has an inaudible frequency. */
+  readonly blocked: boolean;
+}
+
+export function getActiveBandStatus(session: TherapySession): ActiveBandStatus {
+  const match = session.tinnitusMatch;
+  const projectionHz = getNearestAMProjectionHz(match.frequencyHz);
+  const confirmedProjectionHz =
+    session.filterSettings['decorrelating-am'].confirmedProjectionHz;
+  const confirmed = confirmedProjectionHz === projectionHz;
+  const preference = ACTIVE_BAND_BY_MATCH_HZ[projectionHz];
+  const primaryBandHz = preference
+    ? MODULATION_BANDS_HZ[preference.primary]
+    : null;
+  const resolution = confirmed
+    ? resolvePaper2025V1ActiveBand(match, projectionHz)
+    : null;
+  const blocked =
+    resolution?.kind === 'unavailable' &&
+    resolution.reason !== 'audibility-incomplete';
+  const bandHz =
+    resolution?.kind === 'resolved' ? resolution.bandHz : primaryBandHz;
+
+  return {
+    projectionHz,
+    confirmedProjectionHz,
+    confirmed,
+    primaryBandHz,
+    bandHz: blocked ? null : bandHz,
+    fallback:
+      resolution?.kind === 'resolved' &&
+      primaryBandHz !== null &&
+      resolution.bandHz !== primaryBandHz,
+    blocked,
+  };
 }

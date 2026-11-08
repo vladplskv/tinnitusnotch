@@ -1,4 +1,5 @@
 import type { TherapyPlaybackSnapshot, TherapySession } from '../index';
+import { getActiveBandStatus } from '../playback/dsp/active-band';
 import {
   MAX_PLOTTED_FREQUENCY_HZ,
   MIN_PLOTTED_FREQUENCY_HZ,
@@ -76,7 +77,7 @@ export function buildVisualizationDescription(
   ];
 
   if (session.selectedFilterId === 'white-noise') {
-    const centerFrequencyHz = session.tinnitusMatch.frequencyHz;
+    const centerFrequencyHz = displayedFrequencyHz;
     const q = session.filterSettings['white-noise'].q;
     const boundaryTerm = Math.sqrt(1 / (q * q) + 4);
     const lowerRatio = (boundaryTerm - 1 / q) / 2;
@@ -103,9 +104,8 @@ export function buildVisualizationDescription(
     };
   }
 
-  const centerFrequencyHz =
-    session.filterSettings['decorrelating-am'].confirmedProjectionHz;
-  if (centerFrequencyHz === null) {
+  const activeBand = getActiveBandStatus(session);
+  if (!activeBand.confirmed || activeBand.bandHz === null) {
     return { markers, bands: [], responseCurves: [] };
   }
 
@@ -113,8 +113,8 @@ export function buildVisualizationDescription(
     markers,
     bands: [
       {
-        fromHz: centerFrequencyHz / Math.SQRT2,
-        toHz: centerFrequencyHz * Math.SQRT2,
+        fromHz: activeBand.bandHz[0],
+        toHz: activeBand.bandHz[1],
         label: 'Confirmed Active Band',
         line,
         pattern: 'plain',

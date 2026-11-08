@@ -6,10 +6,9 @@ import type {
 } from '../../index';
 import { aggregateSpectrumByPixel } from '../../visualization/spectrum';
 import { calculateCanvasSize } from '../../visualization/canvas-size';
-import {
-  frequencyAtPosition,
-  formatFrequency,
-} from '../../visualization/frequency-scale';
+import { frequencyAtPosition } from '../../visualization/frequency-scale';
+import { getActiveBandStatus } from '../../playback/dsp/active-band';
+import { FILTER_COPY, formatBandHz, formatHz } from '../format';
 import { createFrequencyInputRateLimiter } from '../../visualization/frequency-input-rate-limiter';
 import { buildVisualizationDescription } from '../../visualization/overlays';
 import { drawFrequencyVisualization } from '../../visualization/renderer';
@@ -42,13 +41,13 @@ export function FrequencyVisualization(props: FrequencyVisualizationProps) {
   );
   const effectSummary = createMemo(() => {
     if (props.session.selectedFilterId === 'white-noise') {
-      return `Calculated notch, Q ${props.session.filterSettings['white-noise'].q.toFixed(1)}`;
+      return `вырез Q ${props.session.filterSettings['white-noise'].q.toFixed(1)}`;
     }
-    const projection =
-      props.session.filterSettings['decorrelating-am'].confirmedProjectionHz;
-    return projection === null
-      ? 'Active Band is not confirmed yet'
-      : `Confirmed Active Band around ${formatFrequency(projection)}`;
+    const activeBand = getActiveBandStatus(props.session);
+    if (!activeBand.confirmed) return 'рабочая полоса не подтверждена';
+    return activeBand.bandHz === null
+      ? 'нет подходящей полосы'
+      : `полоса ${formatBandHz(activeBand.bandHz)}`;
   });
   let refreshVisualization: (() => void) | null = null;
   let cleanupVisualization = () => {};
@@ -295,19 +294,32 @@ export function FrequencyVisualization(props: FrequencyVisualizationProps) {
 
   return (
     <section
-      class="frequency-visualization"
+      class="fw-viz"
       aria-labelledby="frequency-visualization-heading"
+      data-playback={props.playback.status}
     >
-      <div class="frequency-visualization__heading">
+      <div class="fw-viz__readout">
         <div>
-          <p class="eyebrow">Current sound</p>
-          <h2 id="frequency-visualization-heading">Frequency Visualization</h2>
+          <h2 id="frequency-visualization-heading" class="fw-viz__label">
+            Ваша частота
+          </h2>
+          <p class="fw-viz__number">
+            <span class="fw-viz__digits">
+              {groupDigits(displayedFrequency())}
+            </span>
+            <span class="fw-viz__unit">Гц</span>
+          </p>
         </div>
-        <span class="status-pill">{playbackLabel(props.playback)}</span>
+        <div class="fw-viz__meta">
+          <span class="fw-viz__filter">
+            {FILTER_COPY[props.selectedFilter.id].name}
+          </span>
+          <span class="fw-viz__effect">{effectSummary()}</span>
+        </div>
       </div>
 
       <div
-        class="frequency-visualization__plot"
+        class="fw-viz__plot"
         ref={element => {
           container = element;
         }}
@@ -318,40 +330,44 @@ export function FrequencyVisualization(props: FrequencyVisualizationProps) {
               canvas = element;
             }}
             aria-hidden="true"
-            class="frequency-visualization__canvas"
+            class="fw-viz__canvas"
           />
         </Show>
         <Show when={failed()}>
-          <div class="frequency-visualization__fallback" role="status">
-            The visual rendering is unavailable. Frequency controls and Therapy
-            Playback still work.
+          <div class="fw-viz__fallback" role="status">
+            График недоступен в этом браузере. Подбор частоты и звук работают
+            как обычно.
           </div>
         </Show>
       </div>
 
-      <div class="frequency-visualization__summary">
-        <span>
-          <strong>{formatFrequency(displayedFrequency())}</strong> Tinnitus
-          Frequency
+      <div class="fw-viz__legend">
+        <span class="fw-legend fw-legend--tone">ваша частота</span>
+        <span class="fw-legend fw-legend--sound">звук терапии</span>
+        <span class="fw-viz__drag-hint">
+          Проведите по графику, чтобы выбрать частоту
         </span>
-        <span>
-          <strong>{props.selectedFilter.label}</strong> Therapy Filter
-        </span>
-        <span>{effectSummary()}</span>
         <Show when={reducedMotion()}>
           <span>
-            Spectrum animation is off because Reduced Motion is enabled.
+            Анимация спектра выключена: в системе включено уменьшение движения.
           </span>
         </Show>
       </div>
       <p class="sr-only" aria-live="polite">
-        Tinnitus Frequency{' '}
-        {formatFrequency(props.session.tinnitusMatch.frequencyHz)}.
-        {props.selectedFilter.label}. {effectSummary()}.{' '}
+        Частота {formatHz(props.session.tinnitusMatch.frequencyHz)}.{' '}
+        {FILTER_COPY[props.selectedFilter.id].name}. {effectSummary()}.{' '}
         {playbackLabel(props.playback)}.
       </p>
     </section>
   );
+}
+
+const digitFormatter = new Intl.NumberFormat('ru-RU', {
+  maximumFractionDigits: 0,
+});
+
+function groupDigits(frequencyHz: number): string {
+  return digitFormatter.format(Math.round(frequencyHz));
 }
 
 function isAudiblePlayback(playback: TherapyPlaybackSnapshot): boolean {
@@ -361,18 +377,18 @@ function isAudiblePlayback(playback: TherapyPlaybackSnapshot): boolean {
 function playbackLabel(playback: TherapyPlaybackSnapshot): string {
   switch (playback.status) {
     case 'previewing':
-      return 'Matching Stimulus';
+      return 'Звучит пробный звук';
     case 'playing':
-      return 'Therapy playing';
+      return 'Идёт терапия';
     case 'paused':
-      return 'Paused';
+      return 'Пауза';
     case 'starting':
-      return 'Starting';
+      return 'Запуск';
     case 'stopping':
-      return 'Stopping';
+      return 'Остановка';
     case 'error':
-      return 'Playback error';
+      return 'Ошибка воспроизведения';
     default:
-      return 'Stopped';
+      return 'Тишина';
   }
 }

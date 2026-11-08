@@ -5,18 +5,15 @@ import type {
   WorkspaceSnapshot,
 } from '../index';
 import { Button } from '@/components/ui/button';
-import { For, Show, createEffect, createSignal } from 'solid-js';
-import {
-  FilterSelection,
-  FilterSettings,
-  MasterGainField,
-} from './components/filter-fields';
-import { FrequencyFields } from './components/frequency-fields';
-import { FrequencyVisualization } from './components/frequency-visualization';
-import { PlaybackControls } from './components/playback-controls';
-import { PresetsPanel } from './components/presets-panel';
+import { Show, createEffect, createSignal } from 'solid-js';
+import { Coach } from './components/coach';
+import { ConsoleModules, ScreenModule } from './components/console';
+import { createHearingCheck } from './components/hearing-check';
+import { PlayerBar } from './components/player-bar';
+import { PresetCreateForm, PresetList } from './components/presets-panel';
 import {
   ConfirmationPanel,
+  ModalDialog,
   NotificationCenter,
   RecoveryPanel,
 } from './components/workspace-feedback';
@@ -28,15 +25,11 @@ export interface FrequencyWorkspaceViewProps {
   readonly readSpectrum: FrequencyWorkspace['readSpectrum'];
 }
 
-const STEPS = [
-  'Frequency Matching',
-  'Therapy Filter',
-  'Настройка фильтра',
-  'Все настройки',
-] as const;
+type Section = 'console' | 'coach';
 
 export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
-  const [step, setStep] = createSignal(1);
+  const [section, setSection] = createSignal<Section>('console');
+  const [presetsOpen, setPresetsOpen] = createSignal(false);
   let observedLoadedPresetId: string | null = null;
 
   createEffect(
@@ -46,7 +39,8 @@ export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
         loadedPresetId !== null &&
         loadedPresetId !== observedLoadedPresetId
       ) {
-        setStep(4);
+        setSection('console');
+        setPresetsOpen(false);
       }
       observedLoadedPresetId = loadedPresetId;
     },
@@ -69,20 +63,10 @@ export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
             : null
         }
         fallback={
-          <>
-            <RecoveryPanel
-              persistence={props.snapshot.persistence}
-              dispatch={props.dispatch}
-            />
-            <Show when={props.snapshot.pendingConfirmation}>
-              {confirmation => (
-                <ConfirmationPanel
-                  confirmation={confirmation()}
-                  dispatch={props.dispatch}
-                />
-              )}
-            </Show>
-          </>
+          <RecoveryPanel
+            persistence={props.snapshot.persistence}
+            dispatch={props.dispatch}
+          />
         }
       >
         {ready => (
@@ -90,253 +74,21 @@ export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
             snapshot={props.snapshot}
             session={ready().session}
             selectedFilter={ready().selectedFilter}
-            step={step()}
-            setStep={setStep}
+            section={section()}
+            setSection={setSection}
+            presetsOpen={presetsOpen()}
+            setPresetsOpen={setPresetsOpen}
             dispatch={props.dispatch}
             readSpectrum={props.readSpectrum}
           />
         )}
       </Show>
-      <NotificationCenter
-        notifications={props.snapshot.notifications}
-        dispatch={props.dispatch}
-      />
-    </Show>
-  );
-}
-
-interface ReadyWorkspaceProps extends FrequencyWorkspaceViewProps {
-  readonly session: TherapySession;
-  readonly selectedFilter: TherapyFilterDescription;
-  readonly step: number;
-  readonly setStep: (step: number) => void;
-}
-
-function ReadyWorkspace(props: ReadyWorkspaceProps) {
-  return (
-    <div class="frequency-workspace">
-      <header class="workspace-header">
-        <div>
-          <p class="eyebrow">Tinnitus Notch</p>
-          <h1>Настройка Therapy Session</h1>
-        </div>
-        <div class="workspace-header__status">
-          <span class="status-pill">Шаг {props.step} из 4</span>
-          <span class="save-status">{persistenceLabel(props.snapshot)}</span>
-        </div>
-      </header>
-
-      <main class="workspace-shell">
-        <div class="frequency-visualization-sticky">
-          <FrequencyVisualization
-            session={props.session}
-            previewFrequencyHz={props.snapshot.previewFrequencyHz}
-            selectedFilter={props.selectedFilter}
-            playback={props.snapshot.playback}
-            readSpectrum={props.readSpectrum}
-            onPreviewFrequency={frequencyHz =>
-              props.dispatch({ type: 'preview-frequency', frequencyHz })
-            }
-            onCommitFrequency={frequencyHz =>
-              props.dispatch({ type: 'commit-frequency', frequencyHz })
-            }
-          />
-        </div>
-
-        <nav class="guided-navigation" aria-label="Этапы настройки">
-          <For each={STEPS}>
-            {(label, index) => (
-              <button
-                type="button"
-                class={
-                  props.step === index() + 1
-                    ? 'guided-navigation__step--active'
-                    : undefined
-                }
-                aria-current={props.step === index() + 1 ? 'step' : undefined}
-                onClick={() => props.setStep(index() + 1)}
-              >
-                <span>{index() + 1}</span>
-                {label}
-              </button>
-            )}
-          </For>
-        </nav>
-
-        <Show when={props.snapshot.persistence.status === 'unavailable'}>
-          <div class="workspace-warning" role="status">
-            <span>
-              Настройки работают только в этой вкладке, пока локальное
-              сохранение недоступно.
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => props.dispatch({ type: 'retry-persistence' })}
-            >
-              Повторить сохранение
-            </Button>
-          </div>
-        </Show>
-
-        <Show when={props.step !== 4}>
-          <div class="workspace-presets-start">
-            <PresetsPanel
-              presets={props.snapshot.presets}
-              dirtyPresetId={props.snapshot.dirtyPresetId}
-              loadedPresetId={props.snapshot.loadedPresetId}
-              canSave={props.snapshot.capabilities.canSavePreset}
-              canLoad={props.snapshot.capabilities.canLoadPreset}
-              dispatch={props.dispatch}
-            />
-          </div>
-        </Show>
-
-        <section class="guided-card">
-          <Show when={props.step === 1}>
-            <GuidedHeading
-              step="Шаг 1"
-              title="Найдите Tinnitus Frequency"
-              description="Сравнивайте Matching Stimulus с вашим ощущением. Визуализация сама по себе никогда не запускает звук."
-            />
-            <FrequencyFields
-              session={props.session}
-              previewFrequencyHz={props.snapshot.previewFrequencyHz}
-              canPreview={
-                props.snapshot.capabilities.canPreviewMatchingStimulus
-              }
-              canEdit={props.snapshot.capabilities.canEdit}
-              dispatch={props.dispatch}
-            />
-          </Show>
-
-          <Show when={props.step === 2}>
-            <GuidedHeading
-              step="Шаг 2"
-              title="Выберите Therapy Filter"
-              description="Tinnitus Frequency, тип тиннитуса и master gain останутся общими. Настройки каждого фильтра сохраняются отдельно."
-            />
-            <FilterSelection
-              selectedFilter={props.selectedFilter}
-              filters={props.snapshot.filters}
-              canEdit={props.snapshot.capabilities.canEdit}
-              dispatch={props.dispatch}
-            />
-          </Show>
-
-          <Show when={props.step === 3}>
-            <GuidedHeading
-              step="Шаг 3"
-              title={`Настройте ${props.selectedFilter.label}`}
-              description="Tinnitus Frequency и master gain меняются во время воспроизведения. White Noise применяет частоту сразу, AM меняет Active Band после подтверждения с плавным переходом. Hearing Correction требует нового запуска."
-            />
-            <FilterSettings
-              session={props.session}
-              canEdit={props.snapshot.capabilities.canEdit}
-              canPreviewHearingCorrection={
-                props.snapshot.capabilities.canPreviewHearingCorrection
-              }
-              dispatch={props.dispatch}
-            />
-            <MasterGainField
-              session={props.session}
-              canEdit={props.snapshot.capabilities.canEdit}
-              dispatch={props.dispatch}
-            />
-          </Show>
-
-          <Show when={props.step === 4}>
-            <GuidedHeading
-              step="Шаг 4 · полная форма"
-              title="Проверьте все настройки"
-              description="Здесь можно изменить готовую Therapy Session, сохранить Therapy Preset и управлять воспроизведением."
-            />
-            <div class="complete-form">
-              <section
-                class="form-section"
-                aria-labelledby="shared-settings-heading"
-              >
-                <h3 id="shared-settings-heading">Общие настройки</h3>
-                <FrequencyFields
-                  session={props.session}
-                  previewFrequencyHz={props.snapshot.previewFrequencyHz}
-                  canPreview={
-                    props.snapshot.capabilities.canPreviewMatchingStimulus
-                  }
-                  canEdit={props.snapshot.capabilities.canEdit}
-                  dispatch={props.dispatch}
-                />
-                <MasterGainField
-                  session={props.session}
-                  canEdit={props.snapshot.capabilities.canEdit}
-                  dispatch={props.dispatch}
-                />
-              </section>
-
-              <section
-                class="form-section"
-                aria-labelledby="filter-settings-heading"
-              >
-                <h3 id="filter-settings-heading">Therapy Filter</h3>
-                <FilterSelection
-                  selectedFilter={props.selectedFilter}
-                  filters={props.snapshot.filters}
-                  canEdit={props.snapshot.capabilities.canEdit}
-                  dispatch={props.dispatch}
-                />
-                <FilterSettings
-                  session={props.session}
-                  canEdit={props.snapshot.capabilities.canEdit}
-                  canPreviewHearingCorrection={
-                    props.snapshot.capabilities.canPreviewHearingCorrection
-                  }
-                  dispatch={props.dispatch}
-                />
-              </section>
-
-              <PresetsPanel
-                presets={props.snapshot.presets}
-                dirtyPresetId={props.snapshot.dirtyPresetId}
-                loadedPresetId={props.snapshot.loadedPresetId}
-                canSave={props.snapshot.capabilities.canSavePreset}
-                canLoad={props.snapshot.capabilities.canLoadPreset}
-                dispatch={props.dispatch}
-              />
-
-              <PlaybackControls
-                playback={props.snapshot.playback}
-                capabilities={props.snapshot.capabilities}
-                dispatch={props.dispatch}
-              />
-            </div>
-          </Show>
-
-          <div class="guided-card__footer">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={props.step === 1}
-              onClick={() => props.setStep(props.step - 1)}
-            >
-              Назад
-            </Button>
-            <Button
-              type="button"
-              disabled={props.step === 4}
-              onClick={() => props.setStep(props.step + 1)}
-            >
-              Далее
-            </Button>
-          </div>
-        </section>
-
-        <p class="workspace-disclaimer">
-          Приложение не измеряет SPL, не диагностирует слух и не подтверждает
-          лечебный эффект. Начинайте с низкой системной громкости.
-        </p>
-      </main>
-
+      <Show when={!presetsOpen()}>
+        <NotificationCenter
+          notifications={props.snapshot.notifications}
+          dispatch={props.dispatch}
+        />
+      </Show>
       <Show when={props.snapshot.pendingConfirmation}>
         {confirmation => (
           <ConfirmationPanel
@@ -345,55 +97,184 @@ function ReadyWorkspace(props: ReadyWorkspaceProps) {
           />
         )}
       </Show>
+    </Show>
+  );
+}
+
+interface ReadyWorkspaceProps extends FrequencyWorkspaceViewProps {
+  readonly session: TherapySession;
+  readonly selectedFilter: TherapyFilterDescription;
+  readonly section: Section;
+  readonly setSection: (section: Section) => void;
+  readonly presetsOpen: boolean;
+  readonly setPresetsOpen: (open: boolean) => void;
+}
+
+/**
+ * The studio console: the spectrum on top, the working modules under it and
+ * the player bar at the bottom. The coach is a separate section. In AM mode
+ * the hearing check takes over the module area until it is closed.
+ */
+function ReadyWorkspace(props: ReadyWorkspaceProps) {
+  const check = createHearingCheck(props);
+  const capabilities = () => props.snapshot.capabilities;
+  const go = (next: Section) => {
+    /* A running check lives in the section it was started from. */
+    if (next !== props.section) check.finish();
+    props.setSection(next);
+    window.scrollTo({ top: 0 });
+  };
+
+  return (
+    <div class="fw-app" data-tab={props.section}>
+      <div class="fw-device">
+        <header class="fw-app-top">
+          <h1 class="fw-app-brand">Tinnitus Notch</h1>
+          <nav class="fw-tabs" aria-label="Разделы">
+            <SectionButtons section={props.section} onSelect={go} />
+          </nav>
+          <button
+            type="button"
+            class="fw-key fw-key--sm"
+            onClick={() => props.setPresetsOpen(true)}
+          >
+            Пресеты
+          </button>
+        </header>
+
+        <Show when={props.snapshot.persistence.status === 'unavailable'}>
+          <div class="fw-warning" role="status">
+            <span>
+              Браузер не даёт сохранять настройки. Они действуют, пока открыта
+              эта вкладка.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => props.dispatch({ type: 'retry-persistence' })}
+            >
+              Попробовать снова
+            </Button>
+          </div>
+        </Show>
+
+        <Show
+          when={props.section === 'console'}
+          fallback={
+            <div class="fw-coach-panel">
+              <Coach {...props} check={check} onDone={() => go('console')} />
+            </div>
+          }
+        >
+          <main class="fw-console">
+            <ScreenModule {...props} check={check} />
+            <ConsoleModules {...props} check={check} />
+          </main>
+        </Show>
+
+        <p class="fw-disclaimer">
+          Это экспериментальный звуковой инструмент, а не лечение. Он не
+          измеряет громкость в наушниках и не проверяет слух. Начинайте с низкой
+          системной громкости и сразу останавливайте звук, если он неприятен.
+        </p>
+      </div>
+
+      <Show when={check.index() === null}>
+        <PlayerBar
+          snapshot={props.snapshot}
+          session={props.session}
+          dispatch={props.dispatch}
+        />
+      </Show>
+      <nav class="fw-tabbar" aria-label="Разделы">
+        <SectionButtons section={props.section} onSelect={go} />
+      </nav>
+
+      <Show when={props.presetsOpen}>
+        <ModalDialog
+          labelledBy="presets-heading"
+          class="fw-dialog--sheet"
+          onCancel={() => props.setPresetsOpen(false)}
+        >
+          <div class="fw-sheet__header">
+            <h2 id="presets-heading">Пресеты</h2>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => props.setPresetsOpen(false)}
+            >
+              Закрыть
+            </Button>
+          </div>
+          <p class="fw-help">
+            Пресет хранит частоту, громкость и один выбранный звук с его
+            настройками. Открытие пресета не включает звук.
+          </p>
+          <PresetList
+            presets={props.snapshot.presets}
+            dirtyPresetId={props.snapshot.dirtyPresetId}
+            loadedPresetId={props.snapshot.loadedPresetId}
+            selectedFilterId={props.session.selectedFilterId}
+            canSave={capabilities().canSavePreset}
+            canLoad={capabilities().canLoadPreset}
+            dispatch={props.dispatch}
+          />
+          <div class="fw-sheet__create">
+            <h3>Сохранить текущую настройку</h3>
+            <PresetCreateForm
+              id="sheet-preset-name"
+              canSave={capabilities().canSavePreset}
+              dispatch={props.dispatch}
+            />
+          </div>
+          <NotificationCenter
+            notifications={props.snapshot.notifications}
+            dispatch={props.dispatch}
+          />
+        </ModalDialog>
+      </Show>
     </div>
   );
 }
 
-function GuidedHeading(props: {
-  readonly step: string;
-  readonly title: string;
-  readonly description: string;
+function SectionButtons(props: {
+  readonly section: Section;
+  readonly onSelect: (section: Section) => void;
 }) {
   return (
-    <header class="guided-heading">
-      <p class="eyebrow">{props.step}</p>
-      <h2>{props.title}</h2>
-      <p>{props.description}</p>
-    </header>
+    <>
+      <button
+        type="button"
+        aria-current={props.section === 'console' ? 'page' : undefined}
+        onClick={() => props.onSelect('console')}
+      >
+        Пульт
+      </button>
+      <button
+        type="button"
+        aria-current={props.section === 'coach' ? 'page' : undefined}
+        onClick={() => props.onSelect('coach')}
+      >
+        Тренер
+      </button>
+    </>
   );
 }
 
 function WorkspaceBooting() {
   return (
-    <main class="workspace-shell workspace-shell--centered" aria-busy="true">
+    <main class="fw fw-centered" aria-busy="true">
       <section
-        class="booting-panel"
+        class="fw-notice-panel"
         aria-labelledby="workspace-booting-heading"
       >
-        <div class="booting-panel__visual" aria-hidden="true" />
-        <p class="eyebrow">Tinnitus Notch</p>
-        <h1 id="workspace-booting-heading">Загружаем Frequency Workspace</h1>
-        <p>Проверяем локальные настройки. Звук не запускается автоматически.</p>
+        <p class="fw-brand">Tinnitus Notch</p>
+        <div class="fw-notice-panel__pulse" aria-hidden="true" />
+        <h1 id="workspace-booting-heading">Загружаем настройки</h1>
+        <p>Звук не включится сам: вы запустите его, когда будете готовы.</p>
       </section>
     </main>
   );
-}
-
-function persistenceLabel(snapshot: WorkspaceSnapshot): string {
-  switch (snapshot.persistence.status) {
-    case 'saving':
-      return 'Сохраняем…';
-    case 'saved':
-      return 'Сохранено локально';
-    case 'unavailable':
-      return 'Локальное сохранение недоступно';
-    case 'conflict':
-      return 'Конфликт между вкладками';
-    case 'recovery':
-      return 'Нужно восстановление';
-    default:
-      return snapshot.persistence.dirty
-        ? 'Есть несохранённые изменения'
-        : 'Готово';
-  }
 }
