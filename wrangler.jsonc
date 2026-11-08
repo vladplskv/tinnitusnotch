@@ -3,12 +3,16 @@
   "name": "tinnitusnotch",
   "compatibility_date": "2025-09-27",
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "assets": {
-    "directory": "dist"
+    "directory": "dist/client",
+    "not_found_handling": "single-page-application",
   },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+  "compatibility_flags": ["nodejs_compat"],
+  // `pnpm deploy:preview` publishes the current build as a separate worker
+  // (tinnitusnotch-preview), so the main site on GitHub Pages stays as is.
+  "env": {
+    "preview": {},
+  },
 }

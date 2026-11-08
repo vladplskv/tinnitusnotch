@@ -1,0 +1,21 @@
+{
+  "ignorePatterns": [
+    ".agents/**",
+    ".codex/**",
+    ".git/**",
+    ".scratch/**",
+    "dist/**",
+    "node_modules/**",
+    "playwright-report/**",
+    "test-results/**",
+  ],
+  "printWidth": 80,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "proseWrap": "preserve",
+  "sortPackageJson": false,
+  "sortTailwindcss": {
+    "functions": ["cn", "cva", "cx"],
+  },
+}
