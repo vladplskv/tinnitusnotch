@@ -14,6 +14,7 @@ import type {
 import { createFrequencyInputRateLimiter } from '../../visualization/frequency-input-rate-limiter';
 import {
   FILTER_COPY,
+  HEARING_CORRECTION_COPY,
   clampHz,
   formatHzShort,
   hzFromSliderPosition,
@@ -141,7 +142,7 @@ export function playbackText(
       return 'Останавливаем…';
     case 'previewing':
       if (playback.source.kind === 'hearing-correction-preview')
-        return `Звучит вариант ${playback.source.hearingCorrection.toUpperCase()}`;
+        return `Звучит коррекция «${HEARING_CORRECTION_COPY[playback.source.hearingCorrection].name}»`;
       return `Звучит ${session.tinnitusMatch.type === 'tone' ? 'тон' : 'шум'} ${formatHzShort(session.tinnitusMatch.frequencyHz)}`;
     case 'playing':
       return `Терапия: ${FILTER_COPY[session.selectedFilterId].name}`;

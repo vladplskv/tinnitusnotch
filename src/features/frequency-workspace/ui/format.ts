@@ -1,4 +1,4 @@
-import type { TherapyFilterId } from '../index';
+import type { HearingCorrectionId, TherapyFilterId } from '../index';
 
 const groupFormatter = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 0,
@@ -22,6 +22,20 @@ export function formatHzShort(frequencyHz: number): string {
 export function formatBandHz(bandHz: readonly [number, number]): string {
   return `от ${formatHzShort(bandHz[0])} до ${formatHzShort(bandHz[1])}`;
 }
+
+/**
+ * Hearing Correction profiles as the paper names them (Yukhnovich et al.
+ * 2025, Fig. 1): extra gain for high frequencies, up to 0, 15, 30 or 45 dB.
+ * The stored ids are older and do not match the paper's A1/C1 band labels.
+ */
+export const HEARING_CORRECTION_COPY: Readonly<
+  Record<HearingCorrectionId, { readonly name: string; readonly gain: string }>
+> = {
+  a1: { name: 'Нет', gain: 'ровно' },
+  a2: { name: 'Слабая', gain: 'до +15 дБ' },
+  c1: { name: 'Средняя', gain: 'до +30 дБ' },
+  c2: { name: 'Сильная', gain: 'до +45 дБ' },
+};
 
 export const FILTER_COPY: Readonly<
   Record<

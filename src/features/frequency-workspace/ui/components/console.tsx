@@ -4,7 +4,7 @@
  * runs it takes the place of the modules until it is closed.
  */
 import { getActiveBandStatus } from '../../playback/dsp/active-band';
-import { FILTER_COPY, formatHzShort } from '../format';
+import { FILTER_COPY, HEARING_CORRECTION_COPY, formatHzShort } from '../format';
 import { For, Show } from 'solid-js';
 import { AmBand, HearingCheckPanel, type HearingCheck } from './hearing-check';
 import {
@@ -206,6 +206,10 @@ export function SoundModule(props: WorkspaceProps) {
           АМ работает после подготовки: полоса, проверка слуха и коррекция в
           модуле ниже.
         </p>
+        <p class="fw-module-hint">
+          В исследовании АМ слушали около часа в день 6 недель, не больше 60
+          минут подряд и не громче 60 % от максимума устройства.
+        </p>
       </Show>
     </section>
   );
@@ -265,8 +269,9 @@ export function AmModule(
             3. Коррекция
           </p>
           <p class="fw-module-hint">
-            Удерживайте вариант, чтобы услышать. Выберите тот, где тоны звучат
-            ровнее.
+            Коррекция делает высокие частоты громче, если вы слышите их хуже.
+            Удерживайте вариант, чтобы услышать 17 тонов, и выберите тот, где
+            они звучат одинаково громко.
           </p>
           <div class="fw-corrections">
             <For each={HEARING_CORRECTIONS}>
@@ -291,7 +296,10 @@ export function AmModule(
                     class="fw-led"
                     data-on={am().hearingCorrection === id ? 'true' : undefined}
                   />
-                  {id.toUpperCase()}
+                  <span class="fw-correction__text">
+                    <span>{HEARING_CORRECTION_COPY[id].name}</span>
+                    <small>{HEARING_CORRECTION_COPY[id].gain}</small>
+                  </span>
                 </HoldKey>
               )}
             </For>

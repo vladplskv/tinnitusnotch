@@ -1833,12 +1833,27 @@ body {
 
 .fw-am .fw-corrections {
   margin-top: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .fw-am .fw-correction {
-  min-height: 2.75rem;
-  padding-inline: 0.5rem;
+  min-height: 3rem;
+  padding-inline: 0.75rem;
+  justify-content: flex-start;
+}
+
+/* Profile name over its gain, as the paper's Fig. 1 labels them. */
+.fw-correction__text {
+  display: grid;
+  justify-items: start;
+  text-align: left;
+  line-height: 1.15;
+}
+
+.fw-correction__text small {
+  margin-left: 0;
+  color: var(--mute);
+  font-size: var(--text-xs);
 }
 
 .fw-module-field {
