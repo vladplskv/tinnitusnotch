@@ -41,11 +41,20 @@ function createHearingCorrectionBuffer(
     context.sampleRate,
   );
   const samples = buffer.getChannelData(0);
-  const maxGain = getPaper2025V1HearingGain(correction, 16_000);
+  /*
+   * Every profile plays at the same overall level, so the sequences differ
+   * only in their slope and the louder one does not win the comparison.
+   * With no correction every tone sits at the preview gain.
+   */
+  const gains = TINNITUS_MATCH_FREQUENCIES_HZ.map(frequencyHz =>
+    getPaper2025V1HearingGain(correction, frequencyHz),
+  );
+  const rmsGain = Math.sqrt(
+    gains.reduce((sum, gain) => sum + gain * gain, 0) / gains.length,
+  );
 
   TINNITUS_MATCH_FREQUENCIES_HZ.forEach((frequencyHz, toneIndex) => {
-    const relativeGain =
-      getPaper2025V1HearingGain(correction, frequencyHz) / maxGain;
+    const relativeGain = gains[toneIndex] / rmsGain;
     const offset = toneIndex * toneSamples;
     for (let sampleIndex = 0; sampleIndex < toneSamples; sampleIndex += 1) {
       const edgeDistance = Math.min(sampleIndex, toneSamples - 1 - sampleIndex);
