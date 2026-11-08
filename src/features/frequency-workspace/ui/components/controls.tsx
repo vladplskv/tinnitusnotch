@@ -361,62 +361,6 @@ export function Rocker<T extends string>(props: RockerProps<T>) {
   );
 }
 
-/* ---------- Momentary key: sounds only while held ---------- */
-
-interface HoldKeyProps {
-  readonly class?: string;
-  readonly disabled?: boolean;
-  readonly active: boolean;
-  readonly onPress: () => void;
-  readonly onRelease: () => void;
-  readonly children: unknown;
-}
-
-export function HoldKey(props: HoldKeyProps) {
-  let held = false;
-  const press = () => {
-    if (held || props.disabled) return;
-    held = true;
-    haptic(12);
-    props.onPress();
-  };
-  const release = () => {
-    if (!held) return;
-    held = false;
-    props.onRelease();
-  };
-  onCleanup(release);
-  return (
-    <button
-      type="button"
-      class={`fw-hold ${props.class ?? ''}`}
-      data-active={props.active ? 'true' : undefined}
-      disabled={props.disabled}
-      aria-pressed={props.active ? 'true' : 'false'}
-      onPointerDown={event => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        press();
-      }}
-      onPointerUp={release}
-      onPointerCancel={release}
-      onLostPointerCapture={release}
-      onBlur={release}
-      onKeyDown={event => {
-        if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) {
-          event.preventDefault();
-          press();
-        }
-      }}
-      onKeyUp={event => {
-        if (event.key === ' ' || event.key === 'Enter') release();
-      }}
-      onContextMenu={event => event.preventDefault()}
-    >
-      {props.children as never}
-    </button>
-  );
-}
-
 /* ---------- Listen key: hold to hear, slide to retune ---------- */
 
 /** Sideways travel for one octave while the listen key is held. */

@@ -3,6 +3,7 @@
  * De-correlating AM, the three preparation steps. While an AM hearing check
  * runs it takes the place of the modules until it is closed.
  */
+import type { HearingCorrectionId } from '../../index';
 import { getActiveBandStatus } from '../../playback/dsp/active-band';
 import { FILTER_COPY, HEARING_CORRECTION_COPY, formatHzShort } from '../format';
 import { For, Show } from 'solid-js';
@@ -12,7 +13,7 @@ import {
   Fader,
   FrequencyNudges,
   HEARING_CORRECTIONS,
-  HoldKey,
+  haptic,
   ListenKey,
   Rocker,
   createFrequencyControl,
@@ -226,6 +227,15 @@ export function AmModule(
 ) {
   const caps = () => props.snapshot.capabilities;
   const am = () => props.session.filterSettings['decorrelating-am'];
+  /* The 17-tone sequence of this profile is playing right now. */
+  const sounding = (id: HearingCorrectionId) => {
+    const playback = props.snapshot.playback;
+    return (
+      (playback.status === 'previewing' || playback.status === 'starting') &&
+      playback.source.kind === 'hearing-correction-preview' &&
+      playback.source.hearingCorrection === id
+    );
+  };
   const bandDone = () => {
     const band = getActiveBandStatus(props.session);
     return band.confirmed && !band.blocked;
@@ -270,17 +280,29 @@ export function AmModule(
           </p>
           <p class="fw-module-hint">
             Коррекция делает высокие частоты громче, если вы слышите их хуже.
-            Удерживайте вариант, чтобы услышать 17 тонов, и выберите тот, где
-            они звучат одинаково громко.
+            Нажмите вариант, чтобы услышать 17 тонов, и выберите тот, где они
+            звучат одинаково громко. Повторное нажатие останавливает звук.
           </p>
           <div class="fw-corrections">
             <For each={HEARING_CORRECTIONS}>
               {id => (
-                <HoldKey
-                  class="fw-correction"
-                  active={am().hearingCorrection === id}
+                <button
+                  type="button"
+                  class="fw-hold fw-correction"
+                  data-active={
+                    am().hearingCorrection === id ? 'true' : undefined
+                  }
+                  data-playing={sounding(id) ? 'true' : undefined}
+                  aria-pressed={
+                    am().hearingCorrection === id ? 'true' : 'false'
+                  }
                   disabled={!caps().canEdit}
-                  onPress={() => {
+                  onClick={() => {
+                    haptic(12);
+                    if (sounding(id)) {
+                      props.dispatch({ type: 'stop-playback' });
+                      return;
+                    }
                     props.dispatch({
                       type: 'set-hearing-correction',
                       value: id,
@@ -290,17 +312,26 @@ export function AmModule(
                       value: id,
                     });
                   }}
-                  onRelease={() => props.dispatch({ type: 'stop-playback' })}
                 >
                   <span
                     class="fw-led"
-                    data-on={am().hearingCorrection === id ? 'true' : undefined}
+                    data-on={
+                      sounding(id)
+                        ? 'breathe'
+                        : am().hearingCorrection === id
+                          ? 'true'
+                          : undefined
+                    }
                   />
                   <span class="fw-correction__text">
                     <span>{HEARING_CORRECTION_COPY[id].name}</span>
-                    <small>{HEARING_CORRECTION_COPY[id].gain}</small>
+                    <small>
+                      {sounding(id)
+                        ? 'звучит'
+                        : HEARING_CORRECTION_COPY[id].gain}
+                    </small>
                   </span>
-                </HoldKey>
+                </button>
               )}
             </For>
           </div>
