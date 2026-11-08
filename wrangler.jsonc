@@ -10,4 +10,9 @@
     "not_found_handling": "single-page-application",
   },
   "compatibility_flags": ["nodejs_compat"],
+  // `pnpm deploy:preview` publishes the current build as a separate worker
+  // (tinnitusnotch-preview), so the main site on GitHub Pages stays as is.
+  "env": {
+    "preview": {},
+  },
 }
