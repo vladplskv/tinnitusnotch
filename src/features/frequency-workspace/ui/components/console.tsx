@@ -275,10 +275,15 @@ function CRDetails(props: WorkspaceProps) {
           CR-тоны работают с частотой от{' '}
           {formatHz(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
           {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, сейчас{' '}
-          {formatHz(frequencyHz())}. Запуск недоступен
-          <Show when={sounding()} fallback=".">
-            ; уже идущие тоны звучат как для {formatHz(soundingHz())}.
-          </Show>{' '}
+          {formatHz(frequencyHz())}.{' '}
+          <Switch fallback="Запуск недоступен.">
+            <Match when={props.snapshot.playback.status === 'playing'}>
+              Тоны звучат как для {formatHz(soundingHz())}.
+            </Match>
+            <Match when={props.snapshot.playback.status === 'paused'}>
+              После продолжения тоны прозвучат как для {formatHz(soundingHz())}.
+            </Match>
+          </Switch>{' '}
           Подберите частоту в модуле «Частота» или выберите другой звук.
         </p>
       </Show>

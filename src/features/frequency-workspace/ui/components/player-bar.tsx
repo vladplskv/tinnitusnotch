@@ -33,7 +33,7 @@ export function PlayerBar(
     getActiveBandStatus(props.session).blocked;
   const crBlocked = () =>
     props.session.selectedFilterId === 'cr-neuromodulation' &&
-    !isCRTinnitusFrequency(props.session.tinnitusMatch.frequencyHz);
+    !isCRTinnitusFrequency(frequency());
   /* Why start is blocked, in full: it replaces the frequency and may wrap. */
   const blockedReason = () =>
     status() !== 'stopped'
@@ -41,7 +41,7 @@ export function PlayerBar(
       : amBlocked()
         ? 'АМ: нет подходящей полосы'
         : crBlocked()
-          ? 'CR: частота вне 500–10 000 Гц'
+          ? 'CR: частота вне 500–10\u00a0000\u00a0Гц'
           : null;
   const action = () => {
     const next = transportAction(props.snapshot);
