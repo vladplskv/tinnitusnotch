@@ -187,7 +187,7 @@ export function ConfirmationPanel(props: ConfirmationPanelProps) {
         <p>
           Пресет «
           {'presetName' in props.confirmation && props.confirmation.presetName}»
-          будет удалён. В течение десяти секунд удаление можно отменить.
+          будет удалён. Вернуть его не получится.
         </p>
         <div class="fw-button-row">
           <Button
