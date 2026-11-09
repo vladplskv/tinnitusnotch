@@ -1,12 +1,11 @@
 import type {
   PendingWorkspaceConfirmation,
   WorkspaceIntent,
-  WorkspaceNotification,
   WorkspacePersistenceSnapshot,
 } from '../../index';
 import { formatHz, formatHzShort } from '../format';
 import { Button } from '@/components/ui/button';
-import { For, Show, type ParentProps } from 'solid-js';
+import { Show, type ParentProps } from 'solid-js';
 
 interface RecoveryPanelProps {
   readonly persistence: WorkspacePersistenceSnapshot;
@@ -188,7 +187,7 @@ export function ConfirmationPanel(props: ConfirmationPanelProps) {
         <p>
           Пресет «
           {'presetName' in props.confirmation && props.confirmation.presetName}»
-          будет удалён. В течение десяти секунд удаление можно отменить.
+          будет удалён. Вернуть его не получится.
         </p>
         <div class="fw-button-row">
           <Button
@@ -255,78 +254,4 @@ function resolveConflict(
     originRevision: props.confirmation.originRevision,
     resolution,
   });
-}
-
-interface NotificationCenterProps {
-  readonly notifications: readonly WorkspaceNotification[];
-  readonly dispatch: (intent: WorkspaceIntent) => void;
-}
-
-export function NotificationCenter(props: NotificationCenterProps) {
-  return (
-    <div class="fw-toasts" aria-live="polite" aria-relevant="additions">
-      <For each={props.notifications}>
-        {notification => (
-          <div
-            class="fw-toast"
-            data-kind={notification.kind}
-            role={notification.kind === 'error' ? 'alert' : 'status'}
-          >
-            <span class="fw-toast__text">{notificationText(notification)}</span>
-            <Show
-              when={
-                notification.code === 'preset-deleted' && notification.field
-                  ? notification.field
-                  : null
-              }
-            >
-              {presetId => (
-                <button
-                  type="button"
-                  class="fw-toast__action"
-                  onClick={() =>
-                    props.dispatch({
-                      type: 'undo-delete-preset',
-                      id: presetId(),
-                    })
-                  }
-                >
-                  Вернуть
-                </button>
-              )}
-            </Show>
-            <button
-              type="button"
-              class="fw-toast__close"
-              aria-label="Закрыть уведомление"
-              onClick={() =>
-                props.dispatch({
-                  type: 'dismiss-notification',
-                  id: notification.id,
-                })
-              }
-            >
-              ×
-            </button>
-          </div>
-        )}
-      </For>
-    </div>
-  );
-}
-
-function notificationText(notification: WorkspaceNotification): string {
-  const messages: Readonly<Record<string, string>> = {
-    'preset-created': 'Пресет сохранён.',
-    'preset-updated': 'Изменения пресета сохранены.',
-    'preset-deleted': 'Пресет удалён.',
-    'preset-restored': 'Пресет возвращён.',
-    'storage-repaired':
-      'Часть сохранённых значений была повреждена и заменена безопасными.',
-    'storage-unavailable':
-      'Браузер не даёт сохранять настройки. Они действуют, пока открыта вкладка.',
-    'revision-conflict': 'Настройки изменились в другой вкладке.',
-    'am-projection-applied': 'Рабочая полоса подтверждена.',
-  };
-  return messages[notification.code] ?? notification.code;
 }

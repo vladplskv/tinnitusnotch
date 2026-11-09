@@ -26,18 +26,27 @@ export function normalizeTherapyPresetName(name: string): string {
   return normalized;
 }
 
+export function isTherapyPresetNameTaken(
+  name: string,
+  existingPresets: readonly Pick<TherapyPreset, 'id' | 'name'>[],
+  excludedId?: string,
+): boolean {
+  const normalized = name.trim();
+  return existingPresets.some(
+    preset =>
+      preset.id !== excludedId &&
+      preset.name.localeCompare(normalized, undefined, {
+        sensitivity: 'accent',
+      }) === 0,
+  );
+}
+
 function assertNameIsAvailable(
   name: string,
   existingPresets: readonly TherapyPreset[],
   excludedId?: string,
 ) {
-  const collision = existingPresets.some(
-    preset =>
-      preset.id !== excludedId &&
-      preset.name.localeCompare(name, undefined, { sensitivity: 'accent' }) ===
-        0,
-  );
-  if (collision) {
+  if (isTherapyPresetNameTaken(name, existingPresets, excludedId)) {
     throw new Error(`A Therapy Preset named "${name}" already exists`);
   }
 }
@@ -66,6 +75,14 @@ function snapshotSession(
       ...base,
       filterId: 'white-noise',
       filterSettings: { ...session.filterSettings['white-noise'] },
+    };
+  }
+
+  if (session.selectedFilterId === 'cr-neuromodulation') {
+    return {
+      ...base,
+      filterId: 'cr-neuromodulation',
+      filterSettings: { ...session.filterSettings['cr-neuromodulation'] },
     };
   }
 
@@ -142,6 +159,22 @@ export function applyTherapyPreset(
       },
     };
   }
+  if (preset.filterId === 'cr-neuromodulation') {
+    return {
+      ...current,
+      tinnitusMatch: {
+        ...current.tinnitusMatch,
+        frequencyHz: preset.tinnitusMatch.frequencyHz,
+        type: preset.tinnitusMatch.type,
+      },
+      masterGain: preset.masterGain,
+      selectedFilterId: 'cr-neuromodulation',
+      filterSettings: {
+        ...current.filterSettings,
+        'cr-neuromodulation': { ...preset.filterSettings },
+      },
+    };
+  }
 
   return {
     ...current,
@@ -171,6 +204,14 @@ export function isSessionDirtyForPreset(
   }
   if (preset.filterId === 'white-noise') {
     return session.filterSettings['white-noise'].q !== preset.filterSettings.q;
+  }
+  if (preset.filterId === 'cr-neuromodulation') {
+    const settings = session.filterSettings['cr-neuromodulation'];
+    return (
+      settings.notchedNoise !== preset.filterSettings.notchedNoise ||
+      settings.noiseLevel !== preset.filterSettings.noiseLevel ||
+      settings.notchQ !== preset.filterSettings.notchQ
+    );
   }
   const settings = session.filterSettings['decorrelating-am'];
   return (

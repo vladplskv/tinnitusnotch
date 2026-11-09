@@ -70,6 +70,11 @@ describe('paper-2025-v1 Active Band resolution', () => {
       filterSettings: {
         'white-noise': { q: 1 },
         'decorrelating-am': { hearingCorrection: 'a1', confirmedProjectionHz },
+        'cr-neuromodulation': {
+          notchedNoise: false,
+          noiseLevel: 0.3,
+          notchQ: 1,
+        },
       },
     });
 

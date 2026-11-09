@@ -4,6 +4,7 @@
  * notch edges to set the width, and during an AM hearing check the 17
  * control frequencies sit on the graph as dots.
  */
+import { clampCRTinnitusFrequency } from '../../model/cr-neuromodulation';
 import { FrequencyVisualization } from './frequency-visualization';
 import {
   frequencyAtPosition,
@@ -43,7 +44,23 @@ export function SpectrumStage(props: StageProps) {
   });
   const caps = () => props.snapshot.capabilities;
   const isAM = () => props.session.selectedFilterId === 'decorrelating-am';
-  const q = () => props.session.filterSettings['white-noise'].q;
+  /* White Noise and CR with notched noise both have a draggable notch. */
+  const hasNotch = () =>
+    props.session.selectedFilterId === 'white-noise' ||
+    (props.session.selectedFilterId === 'cr-neuromodulation' &&
+      props.session.filterSettings['cr-neuromodulation'].notchedNoise);
+  const q = () =>
+    props.session.selectedFilterId === 'cr-neuromodulation'
+      ? props.session.filterSettings['cr-neuromodulation'].notchQ
+      : props.session.filterSettings['white-noise'].q;
+  const setQ = (value: number) =>
+    props.dispatch({
+      type:
+        props.session.selectedFilterId === 'cr-neuromodulation'
+          ? 'set-cr-notch-q'
+          : 'set-white-noise-q',
+      value,
+    });
   const frequency = () =>
     props.snapshot.previewFrequencyHz ??
     props.session.tinnitusMatch.frequencyHz;
@@ -71,12 +88,17 @@ export function SpectrumStage(props: StageProps) {
     return () => observer.disconnect();
   });
 
+  /* The CR notch holds at the range edge, like the audio it shows. */
+  const notchCenter = () =>
+    props.session.selectedFilterId === 'cr-neuromodulation'
+      ? clampCRTinnitusFrequency(frequency())
+      : frequency();
   const x = (hz: number) => frequencyPosition(hz, plot().width);
   const notchEdges = () => {
     const term = Math.sqrt(1 / (q() * q()) + 4);
     return {
-      low: frequency() * ((term - 1 / q()) / 2),
-      high: frequency() * ((term + 1 / q()) / 2),
+      low: notchCenter() * ((term - 1 / q()) / 2),
+      high: notchCenter() * ((term + 1 / q()) / 2),
     };
   };
 
@@ -87,8 +109,8 @@ export function SpectrumStage(props: StageProps) {
       event.currentTarget as HTMLElement
     ).parentElement!.getBoundingClientRect();
     const hz = frequencyAtPosition(event.clientX - rect.left, rect.width);
-    const octaves = Math.max(0.05, 2 * Math.abs(Math.log2(hz / frequency())));
-    props.dispatch({ type: 'set-white-noise-q', value: qFromOctaves(octaves) });
+    const octaves = Math.max(0.05, 2 * Math.abs(Math.log2(hz / notchCenter())));
+    setQ(qFromOctaves(octaves));
   };
 
   return (
@@ -120,7 +142,7 @@ export function SpectrumStage(props: StageProps) {
           height: `${plot().height}px`,
         }}
       >
-        <Show when={!isAM()}>
+        <Show when={hasNotch()}>
           <For each={['low', 'high'] as const}>
             {side => (
               <button
@@ -154,13 +176,12 @@ export function SpectrumStage(props: StageProps) {
                   if (factor === null) return;
                   event.preventDefault();
                   const wider = side === 'high' ? factor : 1 / factor;
-                  props.dispatch({
-                    type: 'set-white-noise-q',
-                    value: Math.min(
+                  setQ(
+                    Math.min(
                       5,
                       Math.max(0.1, Math.round((q() / wider) * 100) / 100),
                     ),
-                  });
+                  );
                 }}
               >
                 <span class="fw-edge__grip" />
@@ -170,7 +191,7 @@ export function SpectrumStage(props: StageProps) {
           <Show when={!showDots()}>
             <span
               class="fw-notch-label"
-              style={{ left: `${x(frequency())}px` }}
+              style={{ left: `${x(notchCenter())}px` }}
             >
               вырез {octaveText(q())}
             </span>

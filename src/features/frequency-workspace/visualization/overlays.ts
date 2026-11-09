@@ -1,4 +1,5 @@
 import type { TherapyPlaybackSnapshot, TherapySession } from '../index';
+import { clampCRTinnitusFrequency } from '../model/cr-neuromodulation';
 import { getActiveBandStatus } from '../playback/dsp/active-band';
 import {
   MAX_PLOTTED_FREQUENCY_HZ,
@@ -77,31 +78,24 @@ export function buildVisualizationDescription(
   ];
 
   if (session.selectedFilterId === 'white-noise') {
-    const centerFrequencyHz = displayedFrequencyHz;
-    const q = session.filterSettings['white-noise'].q;
-    const boundaryTerm = Math.sqrt(1 / (q * q) + 4);
-    const lowerRatio = (boundaryTerm - 1 / q) / 2;
-    const upperRatio = (boundaryTerm + 1 / q) / 2;
-
-    return {
+    return describeNotch(
       markers,
-      bands: [
-        {
-          fromHz: centerFrequencyHz * lowerRatio,
-          toHz: centerFrequencyHz * upperRatio,
-          label: 'Calculated notch ≥ 3 dB',
+      displayedFrequencyHz,
+      session.filterSettings['white-noise'].q,
+      line,
+    );
+  }
+
+  if (session.selectedFilterId === 'cr-neuromodulation') {
+    const cr = session.filterSettings['cr-neuromodulation'];
+    return cr.notchedNoise
+      ? describeNotch(
+          markers,
+          clampCRTinnitusFrequency(displayedFrequencyHz),
+          cr.notchQ,
           line,
-          pattern: 'hatched',
-        },
-      ],
-      responseCurves: [
-        {
-          label: 'Calculated White Noise response',
-          line,
-          points: buildWhiteNoiseResponse(centerFrequencyHz, q),
-        },
-      ],
-    };
+        )
+      : { markers, bands: [], responseCurves: [] };
   }
 
   const activeBand = getActiveBandStatus(session);
@@ -121,6 +115,37 @@ export function buildVisualizationDescription(
       },
     ],
     responseCurves: [],
+  };
+}
+
+function describeNotch(
+  markers: readonly FrequencyOverlayMarker[],
+  centerFrequencyHz: number,
+  q: number,
+  line: OverlayLine,
+): VisualizationDescription {
+  const boundaryTerm = Math.sqrt(1 / (q * q) + 4);
+  const lowerRatio = (boundaryTerm - 1 / q) / 2;
+  const upperRatio = (boundaryTerm + 1 / q) / 2;
+
+  return {
+    markers,
+    bands: [
+      {
+        fromHz: centerFrequencyHz * lowerRatio,
+        toHz: centerFrequencyHz * upperRatio,
+        label: 'Calculated notch ≥ 3 dB',
+        line,
+        pattern: 'hatched',
+      },
+    ],
+    responseCurves: [
+      {
+        label: 'Calculated White Noise response',
+        line,
+        points: buildWhiteNoiseResponse(centerFrequencyHz, q),
+      },
+    ],
   };
 }
 

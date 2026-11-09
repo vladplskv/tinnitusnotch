@@ -12,6 +12,11 @@ export function formatHz(frequencyHz: number): string {
   return `${groupFormatter.format(Math.round(frequencyHz))} Гц`;
 }
 
+/** Exact value without the unit, for a readout labelled in Гц. */
+export function formatHzNumber(frequencyHz: number): string {
+  return groupFormatter.format(Math.round(frequencyHz));
+}
+
 /** Compact value for summaries and axes, for example "2,8 кГц". */
 export function formatHzShort(frequencyHz: number): string {
   if (frequencyHz < 1_000) return `${Math.round(frequencyHz)} Гц`;
@@ -42,19 +47,28 @@ export const FILTER_COPY: Readonly<
     TherapyFilterId,
     {
       readonly name: string;
+      readonly hint: string;
       readonly description: string;
     }
   >
 > = {
   'white-noise': {
     name: 'Белый шум с вырезом',
+    hint: 'работает сразу',
     description:
       'Ровный шум, из которого убрана полоса вокруг вашей частоты. Работает сразу, без подготовки.',
   },
   'decorrelating-am': {
     name: 'АМ-терапия',
+    hint: 'эксперимент, нужна подготовка',
     description:
       'Амплитудная модуляция октавной полосы рядом с вашей частотой (De-correlating AM). Перед запуском нужно подтвердить полосу, проверить слух и выбрать коррекцию.',
+  },
+  'cr-neuromodulation': {
+    name: 'CR-тоны',
+    hint: 'эксперимент, без подготовки',
+    description:
+      'Четыре тона вокруг вашей частоты в случайном порядке (CR-нейромодуляция, ACRN). Нужна точно подобранная частота от 500 до 10 000 Гц.',
   },
 };
 

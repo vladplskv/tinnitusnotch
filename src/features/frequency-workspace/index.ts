@@ -11,6 +11,7 @@ export type {
 export { createFrequencyWorkspace } from './application/frequency-workspace';
 export type {
   Audibility,
+  CRNeuromodulationSettings,
   DecorrelatingAMSettings,
   HearingCorrectionId,
   TherapyFilterDescription,

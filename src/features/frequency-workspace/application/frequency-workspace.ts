@@ -206,6 +206,16 @@ export function createFrequencyWorkspace(
             ? 'AudioWorklet недоступен до явного Retry.'
             : null,
       },
+      {
+        id: 'cr-neuromodulation',
+        label: 'CR Neuromodulation',
+        experimental: true,
+        ready: failedFilter !== 'cr-neuromodulation',
+        unavailableReason:
+          failedFilter === 'cr-neuromodulation'
+            ? 'AudioWorklet недоступен до явного Retry.'
+            : null,
+      },
     ];
   }
 
@@ -688,6 +698,11 @@ export function createFrequencyWorkspace(
         publish();
         return;
       case 'set-white-noise-q':
+      case 'set-cr-noise-level':
+      case 'set-cr-notch-q':
+        applySession({ type: intent.type, value: intent.value });
+        return;
+      case 'set-cr-notched-noise':
         applySession({ type: intent.type, value: intent.value });
         return;
       case 'set-hearing-correction':

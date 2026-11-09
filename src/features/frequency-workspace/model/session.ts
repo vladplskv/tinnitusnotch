@@ -5,6 +5,11 @@ import type {
   TherapySession,
   TinnitusType,
 } from './types';
+import {
+  MAX_CR_NOISE_LEVEL,
+  MIN_CR_NOISE_LEVEL,
+  isCRTinnitusFrequency,
+} from './cr-neuromodulation';
 
 export const AM_MATCH_FREQUENCIES_HZ = [
   1000, 1200, 1400, 1700, 2000, 2400, 2800, 3400, 4000, 4800, 5700, 6700, 8000,
@@ -20,6 +25,8 @@ export type TherapySessionReadinessIssue =
   | 'invalid-frequency'
   | 'invalid-master-gain'
   | 'invalid-white-noise-q'
+  | 'cr-frequency-out-of-range'
+  | 'invalid-cr-noise'
   | 'am-projection-unconfirmed'
   | 'am-observations-incomplete'
   | 'hearing-correction-unconfirmed';
@@ -40,6 +47,9 @@ export type TherapySessionChange =
   | { readonly type: 'set-master-gain'; readonly value: number }
   | { readonly type: 'select-filter'; readonly filterId: TherapyFilterId }
   | { readonly type: 'set-white-noise-q'; readonly value: number }
+  | { readonly type: 'set-cr-notched-noise'; readonly value: boolean }
+  | { readonly type: 'set-cr-noise-level'; readonly value: number }
+  | { readonly type: 'set-cr-notch-q'; readonly value: number }
   | {
       readonly type: 'set-hearing-correction';
       readonly value: HearingCorrectionId;
@@ -77,6 +87,7 @@ export function createDefaultTherapySession(): TherapySession {
         hearingCorrection: null,
         confirmedProjectionHz: null,
       },
+      'cr-neuromodulation': { notchedNoise: false, noiseLevel: 0.3, notchQ: 1 },
     },
   };
 }
@@ -106,6 +117,31 @@ export function getNearestAMProjectionHz(frequencyHz: number): number {
   }
 
   return nearest;
+}
+
+function withCRSettings(
+  session: TherapySession,
+  settings: Partial<TherapySession['filterSettings']['cr-neuromodulation']>,
+): TherapySession {
+  return {
+    ...session,
+    filterSettings: {
+      ...session.filterSettings,
+      'cr-neuromodulation': {
+        ...session.filterSettings['cr-neuromodulation'],
+        ...settings,
+      },
+    },
+  };
+}
+
+export function isValidCRNoise(noiseLevel: unknown, notchQ: unknown): boolean {
+  return (
+    typeof noiseLevel === 'number' &&
+    isFiniteNumberInRange(noiseLevel, MIN_CR_NOISE_LEVEL, MAX_CR_NOISE_LEVEL) &&
+    typeof notchQ === 'number' &&
+    isFiniteNumberInRange(notchQ, MIN_WHITE_NOISE_Q, MAX_WHITE_NOISE_Q)
+  );
 }
 
 export function applySessionChange(
@@ -187,6 +223,36 @@ export function applySessionChange(
         },
       };
     }
+    case 'set-cr-notched-noise':
+      return withCRSettings(session, { notchedNoise: change.value });
+    case 'set-cr-noise-level': {
+      if (
+        !isFiniteNumberInRange(
+          change.value,
+          MIN_CR_NOISE_LEVEL,
+          MAX_CR_NOISE_LEVEL,
+        )
+      ) {
+        throw new RangeError(
+          `CR noise level must be between ${MIN_CR_NOISE_LEVEL} and ${MAX_CR_NOISE_LEVEL}`,
+        );
+      }
+      return withCRSettings(session, { noiseLevel: change.value });
+    }
+    case 'set-cr-notch-q': {
+      if (
+        !isFiniteNumberInRange(
+          change.value,
+          MIN_WHITE_NOISE_Q,
+          MAX_WHITE_NOISE_Q,
+        )
+      ) {
+        throw new RangeError(
+          `CR notch Q must be between ${MIN_WHITE_NOISE_Q} and ${MAX_WHITE_NOISE_Q}`,
+        );
+      }
+      return withCRSettings(session, { notchQ: change.value });
+    }
     case 'set-hearing-correction':
       return {
         ...session,
@@ -240,6 +306,14 @@ export function getTherapySessionReadiness(
       )
     ) {
       issues.push('invalid-white-noise-q');
+    }
+  } else if (session.selectedFilterId === 'cr-neuromodulation') {
+    if (!isCRTinnitusFrequency(session.tinnitusMatch.frequencyHz)) {
+      issues.push('cr-frequency-out-of-range');
+    }
+    const cr = session.filterSettings['cr-neuromodulation'];
+    if (!isValidCRNoise(cr.noiseLevel, cr.notchQ)) {
+      issues.push('invalid-cr-noise');
     }
   } else if (
     !frequencyIsValid ||

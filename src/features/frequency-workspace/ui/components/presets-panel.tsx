@@ -3,22 +3,36 @@ import type {
   WorkspaceIntent,
   WorkspacePresetEntry,
 } from '../../index';
+import { isTherapyPresetNameTaken } from '../../model/preset';
 import { FILTER_COPY, formatHzShort } from '../format';
+
+type AvailablePreset = Extract<
+  WorkspacePresetEntry,
+  { kind: 'available' }
+>['preset'];
+
+const availablePresets = (entries: readonly WorkspacePresetEntry[]) =>
+  entries.flatMap(entry => (entry.kind === 'available' ? [entry.preset] : []));
+
+const NAME_TAKEN_TEXT = 'Пресет с таким названием уже есть.';
 import { Button } from '@/components/ui/button';
 import { For, Show, createSignal } from 'solid-js';
 
 interface PresetCreateFormProps {
   readonly id: string;
+  readonly presets: readonly WorkspacePresetEntry[];
   readonly canSave: boolean;
   readonly dispatch: (intent: WorkspaceIntent) => void;
 }
 
 export function PresetCreateForm(props: PresetCreateFormProps) {
   const [name, setName] = createSignal('');
+  const taken = () =>
+    isTherapyPresetNameTaken(name(), availablePresets(props.presets));
 
   const save = () => {
     const presetName = name().trim();
-    if (!presetName || !props.canSave) return;
+    if (!presetName || !props.canSave || taken()) return;
     props.dispatch({ type: 'create-preset', name: presetName });
     setName('');
   };
@@ -47,11 +61,16 @@ export function PresetCreateForm(props: PresetCreateFormProps) {
         <Button
           type="submit"
           variant="outline"
-          disabled={!props.canSave || !name().trim()}
+          disabled={!props.canSave || !name().trim() || taken()}
         >
           Сохранить пресет
         </Button>
       </div>
+      <Show when={taken()}>
+        <p class="fw-help" role="status">
+          {NAME_TAKEN_TEXT}
+        </p>
+      </Show>
       <Show when={!props.canSave}>
         <p class="fw-help">
           Сохранить можно, когда выбранный звук готов к запуску и локальное
@@ -100,6 +119,7 @@ export function PresetList(props: PresetListProps) {
                 {preset => (
                   <PresetCard
                     preset={preset()}
+                    presets={availablePresets(props.presets)}
                     dirty={props.dirtyPresetId === preset().id}
                     loaded={props.loadedPresetId === preset().id}
                     canSave={
@@ -121,10 +141,9 @@ export function PresetList(props: PresetListProps) {
 }
 
 interface PresetCardProps {
-  readonly preset: Extract<
-    WorkspacePresetEntry,
-    { kind: 'available' }
-  >['preset'];
+  readonly preset: AvailablePreset;
+  /** Every available preset, to keep a rename off a taken name. */
+  readonly presets: readonly AvailablePreset[];
   readonly dirty: boolean;
   readonly loaded: boolean;
   readonly canSave: boolean;
@@ -136,8 +155,10 @@ interface PresetCardProps {
 
 function PresetCard(props: PresetCardProps) {
   const [name, setName] = createSignal(props.preset.name);
+  const taken = () =>
+    isTherapyPresetNameTaken(name(), props.presets, props.preset.id);
   const renamed = () =>
-    name().trim() !== '' && name().trim() !== props.preset.name;
+    name().trim() !== '' && name().trim() !== props.preset.name && !taken();
 
   return (
     <article class="fw-preset" data-loaded={props.loaded ? 'true' : undefined}>
@@ -168,6 +189,11 @@ function PresetCard(props: PresetCardProps) {
           <span class="fw-badge fw-badge--done">открыт</span>
         </Show>
       </div>
+      <Show when={taken()}>
+        <p class="fw-preset__note" role="status">
+          {NAME_TAKEN_TEXT}
+        </p>
+      </Show>
       <p class="fw-preset__meta">
         <span>{FILTER_COPY[props.preset.filterId].name}</span>
         <span>{formatHzShort(props.preset.tinnitusMatch.frequencyHz)}</span>

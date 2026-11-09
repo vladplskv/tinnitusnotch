@@ -6,6 +6,7 @@
 import { FILTER_COPY, formatHz } from '../format';
 import { createSignal, onCleanup } from 'solid-js';
 import { getActiveBandStatus } from '../../playback/dsp/active-band';
+import { isCRTinnitusFrequency } from '../../model/cr-neuromodulation';
 import {
   Glyph,
   haptic,
@@ -30,6 +31,18 @@ export function PlayerBar(
   const amBlocked = () =>
     props.session.selectedFilterId === 'decorrelating-am' &&
     getActiveBandStatus(props.session).blocked;
+  const crBlocked = () =>
+    props.session.selectedFilterId === 'cr-neuromodulation' &&
+    !isCRTinnitusFrequency(frequency());
+  /* Why start is blocked, in full: it replaces the frequency and may wrap. */
+  const blockedReason = () =>
+    status() !== 'stopped'
+      ? null
+      : amBlocked()
+        ? 'АМ: нет подходящей полосы'
+        : crBlocked()
+          ? 'CR: частота вне 500–10\u00a0000\u00a0Гц'
+          : null;
   const action = () => {
     const next = transportAction(props.snapshot);
     return next.state === 'start' && amBlocked()
@@ -73,15 +86,15 @@ export function PlayerBar(
         </span>
         <div class="fw-player__meta" role="status">
           <strong>{FILTER_COPY[props.session.selectedFilterId].name}</strong>
-          <small>
-            {formatHz(frequency())} ·{' '}
-            {amBlocked() && status() === 'stopped'
-              ? 'АМ: нет подходящей полосы'
-              : action().intent === null && status() === 'stopped'
-                ? 'запуск после настройки'
-                : status() === 'playing'
-                  ? 'идёт терапия'
-                  : playbackText(props.session, props.snapshot.playback)}
+          <small data-wrap={blockedReason() ? 'true' : undefined}>
+            {blockedReason() ??
+              `${formatHz(frequency())} · ${
+                action().intent === null && status() === 'stopped'
+                  ? 'запуск после настройки'
+                  : status() === 'playing'
+                    ? 'идёт терапия'
+                    : playbackText(props.session, props.snapshot.playback)
+              }`}
           </small>
         </div>
       </div>
