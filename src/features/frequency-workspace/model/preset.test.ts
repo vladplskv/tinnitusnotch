@@ -178,4 +178,65 @@ describe('Therapy Presets', () => {
       filterSettings: { q: 4 },
     });
   });
+
+  it('saves and loads a CR Neuromodulation preset with its noise mix', () => {
+    const session = applySessionChange(
+      applySessionChange(
+        applySessionChange(createDefaultTherapySession(), {
+          type: 'select-filter',
+          filterId: 'cr-neuromodulation',
+        }),
+        { type: 'set-frequency', frequencyHz: 6_000 },
+      ),
+      { type: 'set-cr-notched-noise', value: true },
+    );
+    const preset = createTherapyPreset({
+      id: 'cr-1',
+      name: 'CR',
+      now: 1,
+      session,
+    });
+
+    expect(preset).toMatchObject({
+      filterId: 'cr-neuromodulation',
+      filterSettings: { notchedNoise: true, noiseLevel: 0.3, notchQ: 1 },
+      tinnitusMatch: { frequencyHz: 6_000 },
+    });
+
+    const elsewhere = applySessionChange(createDefaultTherapySession(), {
+      type: 'set-frequency',
+      frequencyHz: 2_000,
+    });
+    const loaded = applyTherapyPreset(elsewhere, preset);
+    expect(loaded.selectedFilterId).toBe('cr-neuromodulation');
+    expect(loaded.tinnitusMatch.frequencyHz).toBe(6_000);
+    expect(loaded.filterSettings['cr-neuromodulation'].notchedNoise).toBe(true);
+    expect(
+      isSessionDirtyForPreset(
+        applySessionChange(loaded, { type: 'set-cr-notch-q', value: 2 }),
+        preset,
+      ),
+    ).toBe(true);
+    expect(isSessionDirtyForPreset(loaded, preset)).toBe(false);
+    expect(
+      isSessionDirtyForPreset(
+        applySessionChange(loaded, {
+          type: 'set-frequency',
+          frequencyHz: 6_100,
+        }),
+        preset,
+      ),
+    ).toBe(true);
+    expect(() =>
+      createTherapyPreset({
+        id: 'cr-2',
+        name: 'Too low',
+        now: 1,
+        session: applySessionChange(session, {
+          type: 'set-frequency',
+          frequencyHz: 400,
+        }),
+      }),
+    ).toThrow('cr-frequency-out-of-range');
+  });
 });

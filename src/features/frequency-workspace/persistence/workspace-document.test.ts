@@ -380,4 +380,108 @@ describe('workspace document', () => {
       rawValue: newer,
     });
   });
+
+  it('round-trips a selected CR Neuromodulation session and preset', () => {
+    const defaults = createDefaultTherapySession();
+    const session = {
+      ...defaults,
+      selectedFilterId: 'cr-neuromodulation' as const,
+      filterSettings: {
+        ...defaults.filterSettings,
+        'cr-neuromodulation': {
+          notchedNoise: true,
+          noiseLevel: 0.5,
+          notchQ: 2,
+        },
+      },
+    };
+    const preset = createTherapyPreset({
+      id: 'cr-1',
+      name: 'CR',
+      now: 1,
+      session,
+    });
+    const document = updateWorkspaceDocument(createInitialWorkspaceDocument(), {
+      session,
+      availablePresets: [preset],
+      loadedPresetId: preset.id,
+    });
+    const decoded = decodeWorkspaceDocument(encodeWorkspaceDocument(document));
+
+    expect(decoded).toMatchObject({
+      kind: 'decoded',
+      repairedFields: [],
+      document: {
+        session: {
+          selectedFilterId: 'cr-neuromodulation',
+          filterSettings: {
+            'cr-neuromodulation': {
+              notchedNoise: true,
+              noiseLevel: 0.5,
+              notchQ: 2,
+            },
+          },
+        },
+        loadedPresetId: 'cr-1',
+      },
+    });
+    expect(
+      decoded.kind === 'decoded' && toWorkspacePresetEntries(decoded.document),
+    ).toEqual([{ kind: 'available', preset }]);
+  });
+
+  it('repairs invalid CR noise settings to their defaults', () => {
+    const encoded = JSON.parse(
+      encodeWorkspaceDocument(createInitialWorkspaceDocument()),
+    );
+    encoded.session.filterSettings['cr-neuromodulation'] = {
+      schemaVersion: 1,
+      notchedNoise: 'yes',
+      noiseLevel: 3,
+      notchQ: 2,
+    };
+    const decoded = decodeWorkspaceDocument(JSON.stringify(encoded));
+
+    expect(decoded).toMatchObject({
+      kind: 'decoded',
+      repairedFields: [
+        'session.filterSettings.cr-neuromodulation.notchedNoise',
+        'session.filterSettings.cr-neuromodulation.noiseLevel',
+      ],
+      document: {
+        session: {
+          filterSettings: {
+            'cr-neuromodulation': {
+              notchedNoise: false,
+              noiseLevel: 0.3,
+              notchQ: 2,
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('gives a document stored before CR the CR defaults without a repair', () => {
+    const encoded = JSON.parse(
+      encodeWorkspaceDocument(createInitialWorkspaceDocument()),
+    );
+    delete encoded.session.filterSettings['cr-neuromodulation'];
+
+    expect(decodeWorkspaceDocument(JSON.stringify(encoded))).toMatchObject({
+      kind: 'decoded',
+      repairedFields: [],
+      document: {
+        session: {
+          filterSettings: {
+            'cr-neuromodulation': {
+              notchedNoise: false,
+              noiseLevel: 0.3,
+              notchQ: 1,
+            },
+          },
+        },
+      },
+    });
+  });
 });

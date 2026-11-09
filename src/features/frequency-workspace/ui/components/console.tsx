@@ -5,8 +5,15 @@
  */
 import type { HearingCorrectionId } from '../../index';
 import { getActiveBandStatus } from '../../playback/dsp/active-band';
+import {
+  CR_MAX_TINNITUS_FREQUENCY_HZ,
+  CR_MIN_TINNITUS_FREQUENCY_HZ,
+  MIN_CR_NOISE_LEVEL,
+  getCRToneFrequenciesHz,
+  isCRTinnitusFrequency,
+} from '../../model/cr-neuromodulation';
 import { FILTER_COPY, HEARING_CORRECTION_COPY, formatHzShort } from '../format';
-import { For, Show } from 'solid-js';
+import { For, Match, Show, Switch } from 'solid-js';
 import { AmBand, HearingCheckPanel, type HearingCheck } from './hearing-check';
 import {
   FREQUENCY_TICKS,
@@ -135,7 +142,7 @@ export function FrequencyModule(props: WorkspaceProps) {
 
 export function SoundModule(props: WorkspaceProps) {
   const caps = () => props.snapshot.capabilities;
-  const isAM = () => props.session.selectedFilterId === 'decorrelating-am';
+  const filterId = () => props.session.selectedFilterId;
   const q = () => props.session.filterSettings['white-noise'].q;
   return (
     <section
@@ -154,65 +161,179 @@ export function SoundModule(props: WorkspaceProps) {
           options={props.snapshot.filters.map(filter => ({
             value: filter.id,
             label: FILTER_COPY[filter.id].name,
-            hint: filter.experimental
-              ? 'эксперимент, нужна подготовка'
-              : 'работает сразу',
+            hint: FILTER_COPY[filter.id].hint,
           }))}
           onChange={filterId =>
             props.dispatch({ type: 'select-filter', filterId })
           }
         />
       </div>
+      <Switch>
+        <Match when={filterId() === 'white-noise'}>
+          <NotchWidthField
+            q={q()}
+            disabled={!caps().canEdit}
+            onChange={value =>
+              props.dispatch({ type: 'set-white-noise-q', value })
+            }
+          />
+        </Match>
+        <Match when={filterId() === 'decorrelating-am'}>
+          <p class="fw-module-hint">
+            АМ работает после подготовки: полоса, проверка слуха и коррекция в
+            модуле ниже.
+          </p>
+          <p class="fw-module-hint">
+            В исследовании АМ слушали около часа в день 6 недель, не больше 60
+            минут подряд и не громче 60 % от максимума устройства.
+          </p>
+        </Match>
+        <Match when={filterId() === 'cr-neuromodulation'}>
+          <CRDetails {...props} />
+        </Match>
+      </Switch>
+    </section>
+  );
+}
+
+/** Notch width as a fader; the notch edges on the graph do the same. */
+function NotchWidthField(props: {
+  readonly q: number;
+  readonly disabled: boolean;
+  readonly onChange: (q: number) => void;
+}) {
+  return (
+    <div class="fw-module-field">
+      <p class="fw-module-field__row">
+        <span class="fw-module-field__label">Ширина выреза</span>
+        <span class="fw-module-field__value">{octaveText(props.q)}</span>
+      </p>
+      <Fader
+        label="Ширина выреза"
+        value={widthFromQ(props.q)}
+        valueText={octaveText(props.q)}
+        detents={8}
+        ticks={[
+          { at: 0, label: 'узкий' },
+          { at: 0.25 },
+          { at: 0.5 },
+          { at: 0.75 },
+          { at: 1, label: 'широкий' },
+        ]}
+        disabled={props.disabled}
+        onInput={value => props.onChange(qFromWidth(value))}
+        onCommit={value => props.onChange(qFromWidth(value))}
+      />
+      <p class="fw-module-hint">
+        Ширину можно тянуть и прямо на графике, за белые края выреза.
+      </p>
+    </div>
+  );
+}
+
+/* The noise level fader runs linearly in decibels against the tones. */
+const CR_NOISE_FLOOR_DB = 20 * Math.log10(MIN_CR_NOISE_LEVEL);
+const noiseDb = (level: number) => 20 * Math.log10(level);
+const faderFromNoiseLevel = (level: number) =>
+  1 - noiseDb(level) / CR_NOISE_FLOOR_DB;
+const noiseLevelFromFader = (value: number) =>
+  Math.round(10 ** (((1 - value) * CR_NOISE_FLOOR_DB) / 20) * 1_000) / 1_000;
+const noiseText = (level: number) =>
+  `${Math.round(noiseDb(level)).toString().replace('-', '−')} дБ`;
+
+/**
+ * The four CR tones for the current frequency, or why there are none, and
+ * the optional notched white noise under them.
+ */
+function CRDetails(props: WorkspaceProps) {
+  const caps = () => props.snapshot.capabilities;
+  const frequencyHz = () => props.session.tinnitusMatch.frequencyHz;
+  const cr = () => props.session.filterSettings['cr-neuromodulation'];
+  const setLevel = (value: number) =>
+    props.dispatch({
+      type: 'set-cr-noise-level',
+      value: Math.max(MIN_CR_NOISE_LEVEL, noiseLevelFromFader(value)),
+    });
+  return (
+    <>
       <Show
-        when={isAM()}
+        when={isCRTinnitusFrequency(frequencyHz())}
         fallback={
-          <div class="fw-module-field">
-            <p class="fw-module-field__row">
-              <span class="fw-module-field__label">Ширина выреза</span>
-              <span class="fw-module-field__value">{octaveText(q())}</span>
-            </p>
-            <Fader
-              label="Ширина выреза"
-              value={widthFromQ(q())}
-              valueText={octaveText(q())}
-              detents={8}
-              ticks={[
-                { at: 0, label: 'узкий' },
-                { at: 0.25 },
-                { at: 0.5 },
-                { at: 0.75 },
-                { at: 1, label: 'широкий' },
-              ]}
-              disabled={!caps().canEdit}
-              onInput={value =>
-                props.dispatch({
-                  type: 'set-white-noise-q',
-                  value: qFromWidth(value),
-                })
-              }
-              onCommit={value =>
-                props.dispatch({
-                  type: 'set-white-noise-q',
-                  value: qFromWidth(value),
-                })
-              }
-            />
-            <p class="fw-module-hint">
-              Ширину можно тянуть и прямо на графике, за белые края выреза.
-            </p>
-          </div>
+          <p class="fw-module-hint" role="status">
+            CR-тоны работают с частотой от{' '}
+            {formatHzShort(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
+            {formatHzShort(CR_MAX_TINNITUS_FREQUENCY_HZ)}. Сейчас{' '}
+            {formatHzShort(frequencyHz())}, запуск недоступен.
+          </p>
         }
       >
-        <p class="fw-module-hint">
-          АМ работает после подготовки: полоса, проверка слуха и коррекция в
-          модуле ниже.
-        </p>
-        <p class="fw-module-hint">
-          В исследовании АМ слушали около часа в день 6 недель, не больше 60
-          минут подряд и не громче 60 % от максимума устройства.
-        </p>
+        <div class="fw-module-field">
+          <p class="fw-module-field__row">
+            <span class="fw-module-field__label">Тоны</span>
+            <span class="fw-module-field__value">
+              {getCRToneFrequenciesHz(frequencyHz())
+                .map(formatHzShort)
+                .join(' · ')}
+            </span>
+          </p>
+        </div>
       </Show>
-    </section>
+      <Rocker
+        label="Белый шум под тонами"
+        value={cr().notchedNoise ? 'mix' : 'tones'}
+        disabled={!caps().canEdit}
+        options={[
+          { value: 'tones', label: 'Только тоны' },
+          { value: 'mix', label: 'Тоны + шум', hint: 'шум с вырезом' },
+        ]}
+        onChange={value =>
+          props.dispatch({
+            type: 'set-cr-notched-noise',
+            value: value === 'mix',
+          })
+        }
+      />
+      <Show when={cr().notchedNoise}>
+        <div class="fw-module-field">
+          <p class="fw-module-field__row">
+            <span class="fw-module-field__label">Громкость шума</span>
+            <span class="fw-module-field__value">
+              {noiseText(cr().noiseLevel)}
+            </span>
+          </p>
+          <Fader
+            label="Громкость шума относительно тонов"
+            value={faderFromNoiseLevel(cr().noiseLevel)}
+            valueText={`${noiseText(cr().noiseLevel)} относительно тонов`}
+            detents={6}
+            ticks={[
+              { at: 0, label: 'тише' },
+              { at: 0.5 },
+              { at: 1, label: 'как тоны' },
+            ]}
+            fill
+            disabled={!caps().canEdit}
+            onInput={setLevel}
+            onCommit={setLevel}
+          />
+        </div>
+        <NotchWidthField
+          q={cr().notchQ}
+          disabled={!caps().canEdit}
+          onChange={value => props.dispatch({ type: 'set-cr-notch-q', value })}
+        />
+      </Show>
+      <p class="fw-module-hint">
+        Тоны звучат в случайном порядке: три такта по четыре тона, затем два
+        такта тишины. Точная частота здесь важнее всего, а громкость тонов
+        должна быть равна громкости шума в ушах.
+      </p>
+      <p class="fw-module-hint">
+        В исследованиях ACRN тоны слушали по 4–6 часов в день несколько месяцев.
+        Это экспериментальный метод: в контролируемом испытании он не превзошёл
+        плацебо.
+      </p>
+    </>
   );
 }
 

@@ -28,6 +28,11 @@ describe('Therapy Session', () => {
           hearingCorrection: null,
           confirmedProjectionHz: null,
         },
+        'cr-neuromodulation': {
+          notchedNoise: false,
+          noiseLevel: 0.3,
+          notchQ: 1,
+        },
       },
     });
     expect(getTherapySessionReadiness(session)).toEqual({
@@ -129,5 +134,51 @@ describe('Therapy Session', () => {
       applySessionChange(session, { type: 'set-white-noise-q', value: 0 }),
     ).toThrowError('White Noise Q must be between 0.1 and 5');
     expect(session).toEqual(createDefaultTherapySession());
+  });
+
+  it('starts CR Neuromodulation only for a frequency from 500 to 10 000 Hz', () => {
+    const cr = applySessionChange(createDefaultTherapySession(), {
+      type: 'select-filter',
+      filterId: 'cr-neuromodulation',
+    });
+    const at = (frequencyHz: number) =>
+      getTherapySessionReadiness(
+        applySessionChange(cr, { type: 'set-frequency', frequencyHz }),
+      );
+
+    expect(at(500)).toEqual({ ready: true, issues: [] });
+    expect(at(10_000)).toEqual({ ready: true, issues: [] });
+    expect(at(499)).toEqual({
+      ready: false,
+      issues: ['cr-frequency-out-of-range'],
+    });
+    expect(at(10_001).issues).toEqual(['cr-frequency-out-of-range']);
+  });
+
+  it('keeps the CR noise mix in range and leaves White Noise alone', () => {
+    const session = createDefaultTherapySession();
+    const mixed = applySessionChange(
+      applySessionChange(
+        applySessionChange(session, {
+          type: 'set-cr-notched-noise',
+          value: true,
+        }),
+        { type: 'set-cr-noise-level', value: 0.5 },
+      ),
+      { type: 'set-cr-notch-q', value: 2 },
+    );
+
+    expect(mixed.filterSettings['cr-neuromodulation']).toEqual({
+      notchedNoise: true,
+      noiseLevel: 0.5,
+      notchQ: 2,
+    });
+    expect(mixed.filterSettings['white-noise']).toEqual({ q: 1 });
+    expect(() =>
+      applySessionChange(session, { type: 'set-cr-noise-level', value: 0 }),
+    ).toThrow(RangeError);
+    expect(() =>
+      applySessionChange(session, { type: 'set-cr-notch-q', value: 6 }),
+    ).toThrow(RangeError);
   });
 });

@@ -129,6 +129,9 @@ export type WorkspaceIntent =
   | { readonly type: 'set-master-gain'; readonly value: number }
   | { readonly type: 'select-filter'; readonly filterId: TherapyFilterId }
   | { readonly type: 'set-white-noise-q'; readonly value: number }
+  | { readonly type: 'set-cr-notched-noise'; readonly value: boolean }
+  | { readonly type: 'set-cr-noise-level'; readonly value: number }
+  | { readonly type: 'set-cr-notch-q'; readonly value: number }
   | {
       readonly type: 'set-hearing-correction';
       readonly value: HearingCorrectionId;

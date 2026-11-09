@@ -72,6 +72,11 @@ function defaultDependencies(): TherapyPlaybackDependencies {
         const module = await import('./sources/white-noise/white-noise-source');
         return module.whiteNoiseSourceFactory;
       }
+      if (filterId === 'cr-neuromodulation') {
+        const module =
+          await import('./sources/cr-neuromodulation/cr-neuromodulation-source');
+        return module.crNeuromodulationSourceFactory;
+      }
 
       const module =
         await import('./sources/decorrelating-am/decorrelating-am-source');

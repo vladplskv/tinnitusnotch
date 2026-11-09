@@ -11,6 +11,10 @@ const workletModule = resolve(
   projectRoot,
   'src/features/frequency-workspace/playback/worklets/decorrelating-am-processor.worklet.ts',
 );
+const crWorkletModule = resolve(
+  projectRoot,
+  'src/features/frequency-workspace/playback/worklets/cr-neuromodulation-processor.worklet.ts',
+);
 
 let temporaryRoot = '';
 let server: Server;
@@ -21,7 +25,7 @@ test.beforeAll(async () => {
   const outputDirectory = join(temporaryRoot, 'dist');
   await writeFile(
     join(temporaryRoot, 'index.html'),
-    '<button id="start" type="button">Start muted AudioWorklet</button><script type="module" src="./main.ts"></script>',
+    '<button id="start" type="button">Start muted AudioWorklet</button><button id="start-cr" type="button">Start muted CR AudioWorklet</button><script type="module" src="./main.ts"></script>',
   );
   await writeFile(
     join(temporaryRoot, 'main.ts'),
@@ -50,6 +54,28 @@ button.addEventListener('click', async () => {
       await context.close();
     }
   };
+  await context.resume();
+});
+import crWorkletUrl from ${JSON.stringify(`${crWorkletModule}?worker&url`)};
+document.querySelector('#start-cr').addEventListener('click', async () => {
+  const context = new AudioContext({ sampleRate: 44100 });
+  await context.audioWorklet.addModule(crWorkletUrl);
+  const node = new AudioWorkletNode(context, 'cr-neuromodulation', {
+    numberOfInputs: 0,
+    numberOfOutputs: 1,
+    outputChannelCount: [2],
+    processorOptions: { tinnitusFrequencyHz: 4000, seed: 305419896 },
+  });
+  const muted = context.createGain();
+  muted.gain.value = 0;
+  node.connect(muted).connect(context.destination);
+  node.port.onmessage = async event => {
+    if (event.data?.type === 'processed') {
+      document.body.dataset.crWorklet = 'processed';
+      await context.close();
+    }
+  };
+  node.port.postMessage({ type: 'set-tinnitus-frequency', frequencyHz: 3000 });
   await context.resume();
 });`,
   );
@@ -111,6 +137,20 @@ test('built Chromium loads and executes the shared production AudioWorklet', asy
 
   await expect(page.locator('body')).toHaveAttribute(
     'data-worklet',
+    'processed',
+  );
+});
+
+test('built Chromium loads and executes the CR Neuromodulation AudioWorklet', async ({
+  page,
+}) => {
+  await page.goto(origin);
+  await page
+    .getByRole('button', { name: 'Start muted CR AudioWorklet' })
+    .click();
+
+  await expect(page.locator('body')).toHaveAttribute(
+    'data-cr-worklet',
     'processed',
   );
 });

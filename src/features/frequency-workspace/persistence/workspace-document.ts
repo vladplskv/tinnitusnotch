@@ -6,7 +6,13 @@ import {
   MIN_WHITE_NOISE_Q,
   createDefaultTherapySession,
   getNearestAMProjectionHz,
+  isValidCRNoise,
 } from '../model/session';
+import {
+  MAX_CR_NOISE_LEVEL,
+  MIN_CR_NOISE_LEVEL,
+  isCRTinnitusFrequency,
+} from '../model/cr-neuromodulation';
 import type {
   Audibility,
   HearingCorrectionId,
@@ -62,6 +68,8 @@ interface PreservedWorkspaceRaw {
   readonly whiteNoiseIsOpaque: boolean;
   readonly decorrelatingAM: Readonly<Record<string, unknown>>;
   readonly decorrelatingAMIsOpaque: boolean;
+  readonly crNeuromodulation: Readonly<Record<string, unknown>>;
+  readonly crNeuromodulationIsOpaque: boolean;
 }
 
 export interface WorkspaceDocument {
@@ -110,6 +118,8 @@ function createEmptyPreservedRaw(): PreservedWorkspaceRaw {
     whiteNoiseIsOpaque: false,
     decorrelatingAM: {},
     decorrelatingAMIsOpaque: false,
+    crNeuromodulation: {},
+    crNeuromodulationIsOpaque: false,
   };
 }
 
@@ -288,6 +298,13 @@ function encodeSession(
             confirmedProjectionHz:
               session.filterSettings['decorrelating-am'].confirmedProjectionHz,
           },
+      'cr-neuromodulation': preserved.crNeuromodulationIsOpaque
+        ? cloneJsonValue(preserved.crNeuromodulation)
+        : {
+            ...cloneJsonValue(preserved.crNeuromodulation),
+            schemaVersion: FILTER_SETTINGS_SCHEMA_VERSION,
+            ...session.filterSettings['cr-neuromodulation'],
+          },
     },
   };
 }
@@ -410,7 +427,8 @@ function parsePreset(
   if (
     raw.schemaVersion === PRESET_SCHEMA_VERSION &&
     raw.filterId !== 'white-noise' &&
-    raw.filterId !== 'decorrelating-am'
+    raw.filterId !== 'decorrelating-am' &&
+    raw.filterId !== 'cr-neuromodulation'
   ) {
     return unavailablePreset(raw, sourceIndex, 'unknown-filter');
   }
@@ -462,6 +480,21 @@ function parsePreset(
       ...base,
       filterId: 'white-noise',
       filterSettings: { q: raw.filterSettings.q },
+    };
+  } else if (
+    raw.filterId === 'cr-neuromodulation' &&
+    isCRTinnitusFrequency(match.frequencyHz) &&
+    typeof raw.filterSettings.notchedNoise === 'boolean' &&
+    isValidCRNoise(raw.filterSettings.noiseLevel, raw.filterSettings.notchQ)
+  ) {
+    preset = {
+      ...base,
+      filterId: 'cr-neuromodulation',
+      filterSettings: {
+        notchedNoise: raw.filterSettings.notchedNoise,
+        noiseLevel: raw.filterSettings.noiseLevel as number,
+        notchQ: raw.filterSettings.notchQ as number,
+      },
     };
   } else if (raw.filterId === 'decorrelating-am') {
     const correction = raw.filterSettings.hearingCorrection;
@@ -563,6 +596,21 @@ export function decodeWorkspaceDocument(
   const rawDecorrelatingAM = isRecord(rawFilterSettings['decorrelating-am'])
     ? rawFilterSettings['decorrelating-am']
     : {};
+  /*
+   * CR came after the first stored documents. Its missing entry takes the
+   * defaults quietly; only a stored entry that is wrong counts as a repair.
+   */
+  const crNeuromodulationStored = isRecord(
+    rawFilterSettings['cr-neuromodulation'],
+  );
+  const rawCRNeuromodulation = crNeuromodulationStored
+    ? (rawFilterSettings['cr-neuromodulation'] as Record<string, unknown>)
+    : {};
+  const repairCR = (field: string) => {
+    if (crNeuromodulationStored) {
+      repair(`session.filterSettings.cr-neuromodulation.${field}`);
+    }
+  };
   const rawAudibility = isRecord(rawMatch.audibilityByFrequencyHz)
     ? rawMatch.audibilityByFrequencyHz
     : {};
@@ -598,7 +646,18 @@ export function decodeWorkspaceDocument(
   const decorrelatingAMIsOpaque =
     typeof rawDecorrelatingAM.schemaVersion === 'number' &&
     rawDecorrelatingAM.schemaVersion > FILTER_SETTINGS_SCHEMA_VERSION;
-  if (sessionIsOpaque || whiteNoiseIsOpaque || decorrelatingAMIsOpaque) {
+  const crNeuromodulationSchemaSupported =
+    sessionSchemaSupported &&
+    rawCRNeuromodulation.schemaVersion === FILTER_SETTINGS_SCHEMA_VERSION;
+  const crNeuromodulationIsOpaque =
+    typeof rawCRNeuromodulation.schemaVersion === 'number' &&
+    rawCRNeuromodulation.schemaVersion > FILTER_SETTINGS_SCHEMA_VERSION;
+  if (
+    sessionIsOpaque ||
+    whiteNoiseIsOpaque ||
+    decorrelatingAMIsOpaque ||
+    crNeuromodulationIsOpaque
+  ) {
     return { kind: 'recovery', reason: 'newer-version', rawValue };
   }
   if (!whiteNoiseSchemaSupported) {
@@ -606,6 +665,9 @@ export function decodeWorkspaceDocument(
   }
   if (!decorrelatingAMSchemaSupported) {
     repair('session.filterSettings.decorrelating-am.schemaVersion');
+  }
+  if (!crNeuromodulationSchemaSupported) {
+    repairCR('schemaVersion');
   }
 
   const frequencyHz = isFiniteInRange(
@@ -646,7 +708,8 @@ export function decodeWorkspaceDocument(
 
   const selectedFilterId =
     readableSession.selectedFilterId === 'white-noise' ||
-    readableSession.selectedFilterId === 'decorrelating-am'
+    readableSession.selectedFilterId === 'decorrelating-am' ||
+    readableSession.selectedFilterId === 'cr-neuromodulation'
       ? readableSession.selectedFilterId
       : defaultSession.selectedFilterId;
   if (selectedFilterId !== readableSession.selectedFilterId) {
@@ -689,6 +752,40 @@ export function decodeWorkspaceDocument(
     repair('session.filterSettings.decorrelating-am.confirmedProjectionHz');
   }
 
+  const defaultCR = defaultSession.filterSettings['cr-neuromodulation'];
+  const crNotchedNoise =
+    crNeuromodulationSchemaSupported &&
+    typeof rawCRNeuromodulation.notchedNoise === 'boolean'
+      ? rawCRNeuromodulation.notchedNoise
+      : defaultCR.notchedNoise;
+  if (crNotchedNoise !== rawCRNeuromodulation.notchedNoise) {
+    repairCR('notchedNoise');
+  }
+  const crNoiseLevel =
+    crNeuromodulationSchemaSupported &&
+    isFiniteInRange(
+      rawCRNeuromodulation.noiseLevel,
+      MIN_CR_NOISE_LEVEL,
+      MAX_CR_NOISE_LEVEL,
+    )
+      ? (rawCRNeuromodulation.noiseLevel as number)
+      : defaultCR.noiseLevel;
+  if (crNoiseLevel !== rawCRNeuromodulation.noiseLevel) {
+    repairCR('noiseLevel');
+  }
+  const crNotchQ =
+    crNeuromodulationSchemaSupported &&
+    isFiniteInRange(
+      rawCRNeuromodulation.notchQ,
+      MIN_WHITE_NOISE_Q,
+      MAX_WHITE_NOISE_Q,
+    )
+      ? (rawCRNeuromodulation.notchQ as number)
+      : defaultCR.notchQ;
+  if (crNotchQ !== rawCRNeuromodulation.notchQ) {
+    repairCR('notchQ');
+  }
+
   const session: TherapySession = {
     tinnitusMatch: { frequencyHz, type: tinnitusType, audibilityByFrequencyHz },
     masterGain,
@@ -696,6 +793,11 @@ export function decodeWorkspaceDocument(
     filterSettings: {
       'white-noise': { q: whiteNoiseQ },
       'decorrelating-am': { hearingCorrection, confirmedProjectionHz },
+      'cr-neuromodulation': {
+        notchedNoise: crNotchedNoise,
+        noiseLevel: crNoiseLevel,
+        notchQ: crNotchQ,
+      },
     },
   };
 
@@ -733,6 +835,8 @@ export function decodeWorkspaceDocument(
       whiteNoiseIsOpaque,
       decorrelatingAM: cloneJsonValue(rawDecorrelatingAM),
       decorrelatingAMIsOpaque,
+      crNeuromodulation: cloneJsonValue(rawCRNeuromodulation),
+      crNeuromodulationIsOpaque,
     },
   };
 

@@ -33,6 +33,7 @@ const baseSession: TherapySession = {
       hearingCorrection: 'a1',
       confirmedProjectionHz: 4_000,
     },
+    'cr-neuromodulation': { notchedNoise: false, noiseLevel: 0.3, notchQ: 1 },
   },
 };
 
@@ -134,5 +135,38 @@ describe('Therapy Filter visualization descriptions', () => {
     expect(
       buildVisualizationDescription(baseSession, previewing).bands[0]?.line,
     ).toBe('dashed');
+  });
+
+  test('draws the CR notch only while notched noise is mixed in', () => {
+    const session: TherapySession = {
+      ...baseSession,
+      selectedFilterId: 'cr-neuromodulation',
+      filterSettings: {
+        ...baseSession.filterSettings,
+        'cr-neuromodulation': {
+          notchedNoise: true,
+          noiseLevel: 0.3,
+          notchQ: 1,
+        },
+      },
+    };
+
+    expect(buildVisualizationDescription(session, stoppedPlayback)).toEqual(
+      buildVisualizationDescription(baseSession, stoppedPlayback),
+    );
+  });
+
+  test('draws no AM band over CR Neuromodulation, even with a confirmed AM band', () => {
+    const session: TherapySession = {
+      ...baseSession,
+      tinnitusMatch: { ...baseSession.tinnitusMatch, frequencyHz: 4_000 },
+      selectedFilterId: 'cr-neuromodulation',
+    };
+
+    expect(buildVisualizationDescription(session, stoppedPlayback)).toEqual({
+      markers: [{ frequencyHz: 4_000, label: 'Tinnitus Frequency' }],
+      bands: [],
+      responseCurves: [],
+    });
   });
 });

@@ -5,6 +5,7 @@
 - [Начало работы](./user/getting-started.md): безопасность, пульт и тренер, подбор частоты
 - [Белый шум с вырезом](./user/white-noise.md)
 - [АМ-терапия](./user/am-therapy.md): рабочая полоса, проверка слуха, коррекция, режим прослушивания
+- [CR-тоны](./user/cr-tones.md): четыре тона вокруг вашей частоты, микс с белым шумом с вырезом
 - [Пресеты и сохранение](./user/presets.md)
 - [Если звука нет](./user/troubleshooting.md)
 
@@ -17,6 +18,7 @@
 - [Архитектура](./internals/overview.md)
 - [Словарь](./internals/glossary.md)
 - [De-correlating AM и сверка со статьёй](./internals/am-dsp.md)
+- [CR Neuromodulation и отличия от checkhearing.org](./internals/cr-dsp.md)
 
 ### Регламенты
 

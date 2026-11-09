@@ -8,7 +8,11 @@ import { aggregateSpectrumByPixel } from '../../visualization/spectrum';
 import { calculateCanvasSize } from '../../visualization/canvas-size';
 import { frequencyAtPosition } from '../../visualization/frequency-scale';
 import { getActiveBandStatus } from '../../playback/dsp/active-band';
-import { FILTER_COPY, formatBandHz, formatHz } from '../format';
+import {
+  getCRToneFrequenciesHz,
+  isCRTinnitusFrequency,
+} from '../../model/cr-neuromodulation';
+import { FILTER_COPY, formatBandHz, formatHz, formatHzShort } from '../format';
 import { createFrequencyInputRateLimiter } from '../../visualization/frequency-input-rate-limiter';
 import { buildVisualizationDescription } from '../../visualization/overlays';
 import { drawFrequencyVisualization } from '../../visualization/renderer';
@@ -42,6 +46,16 @@ export function FrequencyVisualization(props: FrequencyVisualizationProps) {
   const effectSummary = createMemo(() => {
     if (props.session.selectedFilterId === 'white-noise') {
       return `вырез Q ${props.session.filterSettings['white-noise'].q.toFixed(1)}`;
+    }
+    if (props.session.selectedFilterId === 'cr-neuromodulation') {
+      if (!isCRTinnitusFrequency(displayedFrequency())) {
+        return 'частота вне диапазона CR';
+      }
+      const cr = props.session.filterSettings['cr-neuromodulation'];
+      const tones = `тоны ${getCRToneFrequenciesHz(displayedFrequency()).map(formatHzShort).join(', ')}`;
+      return cr.notchedNoise
+        ? `${tones} + шум, вырез Q ${cr.notchQ.toFixed(1)}`
+        : tones;
     }
     const activeBand = getActiveBandStatus(props.session);
     if (!activeBand.confirmed) return 'рабочая полоса не подтверждена';

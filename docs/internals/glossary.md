@@ -4,7 +4,7 @@ Domain terms used in code, tests and docs. Architecture belongs in the [overview
 
 | Term | Meaning | Avoid |
 | --- | --- | --- |
-| Therapy Filter | A selectable way of shaping or generating therapy sound. White Noise and De-correlating AM are the current Therapy Filters; more may be added later. | Page, route, AM mode |
+| Therapy Filter | A selectable way of shaping or generating therapy sound. White Noise, De-correlating AM and CR Neuromodulation are the current Therapy Filters; more may be added later. | Page, route, AM mode |
 | Tinnitus Frequency | The frequency a person identifies as matching their tinnitus and which most Therapy Filters use for configuration. | Filter frequency, selected tone |
 | Frequency Matching | The process of finding a Tinnitus Frequency by listening and comparing frequencies. It is a shared capability for most Therapy Filters, not a Therapy Filter itself. | Filter selection |
 | Frequency Visualization | A persistent view of the current Therapy Playback spectrum, the selected Tinnitus Frequency, and the configured effect of the selected Therapy Filter. It can help with Frequency Matching but does not measure perceived or calibrated loudness. | Spectrum chart, canvas, loudness meter |

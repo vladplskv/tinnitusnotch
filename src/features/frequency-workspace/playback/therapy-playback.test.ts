@@ -26,6 +26,7 @@ const SESSION: TherapySession = {
       hearingCorrection: null,
       confirmedProjectionHz: null,
     },
+    'cr-neuromodulation': { notchedNoise: false, noiseLevel: 0.3, notchQ: 1 },
   },
 };
 

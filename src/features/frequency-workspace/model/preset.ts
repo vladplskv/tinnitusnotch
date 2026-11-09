@@ -69,6 +69,14 @@ function snapshotSession(
     };
   }
 
+  if (session.selectedFilterId === 'cr-neuromodulation') {
+    return {
+      ...base,
+      filterId: 'cr-neuromodulation',
+      filterSettings: { ...session.filterSettings['cr-neuromodulation'] },
+    };
+  }
+
   return {
     ...base,
     filterId: 'decorrelating-am',
@@ -142,6 +150,22 @@ export function applyTherapyPreset(
       },
     };
   }
+  if (preset.filterId === 'cr-neuromodulation') {
+    return {
+      ...current,
+      tinnitusMatch: {
+        ...current.tinnitusMatch,
+        frequencyHz: preset.tinnitusMatch.frequencyHz,
+        type: preset.tinnitusMatch.type,
+      },
+      masterGain: preset.masterGain,
+      selectedFilterId: 'cr-neuromodulation',
+      filterSettings: {
+        ...current.filterSettings,
+        'cr-neuromodulation': { ...preset.filterSettings },
+      },
+    };
+  }
 
   return {
     ...current,
@@ -171,6 +195,14 @@ export function isSessionDirtyForPreset(
   }
   if (preset.filterId === 'white-noise') {
     return session.filterSettings['white-noise'].q !== preset.filterSettings.q;
+  }
+  if (preset.filterId === 'cr-neuromodulation') {
+    const settings = session.filterSettings['cr-neuromodulation'];
+    return (
+      settings.notchedNoise !== preset.filterSettings.notchedNoise ||
+      settings.noiseLevel !== preset.filterSettings.noiseLevel ||
+      settings.notchQ !== preset.filterSettings.notchQ
+    );
   }
   const settings = session.filterSettings['decorrelating-am'];
   return (

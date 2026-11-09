@@ -1,4 +1,7 @@
-export type TherapyFilterId = 'white-noise' | 'decorrelating-am';
+export type TherapyFilterId =
+  | 'white-noise'
+  | 'decorrelating-am'
+  | 'cr-neuromodulation';
 
 export type TinnitusType = 'tone' | 'noise';
 
@@ -21,9 +24,18 @@ export interface DecorrelatingAMSettings {
   readonly confirmedProjectionHz: number | null;
 }
 
+/** The tones come from the Tinnitus Frequency; the settings mix in notched noise. */
+export interface CRNeuromodulationSettings {
+  readonly notchedNoise: boolean;
+  /** Linear gain of the notched noise relative to the full-scale tones. */
+  readonly noiseLevel: number;
+  readonly notchQ: number;
+}
+
 export interface TherapyFilterSettings {
   readonly 'white-noise': WhiteNoiseSettings;
   readonly 'decorrelating-am': DecorrelatingAMSettings;
+  readonly 'cr-neuromodulation': CRNeuromodulationSettings;
 }
 
 export interface TherapySession {
@@ -50,6 +62,10 @@ export type TherapyPreset =
   | (TherapyPresetBase & {
       readonly filterId: 'decorrelating-am';
       readonly filterSettings: DecorrelatingAMSettings;
+    })
+  | (TherapyPresetBase & {
+      readonly filterId: 'cr-neuromodulation';
+      readonly filterSettings: CRNeuromodulationSettings;
     });
 
 export interface TherapyFilterDescription {
