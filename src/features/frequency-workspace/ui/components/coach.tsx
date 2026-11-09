@@ -4,7 +4,7 @@
  * same session as the console.
  */
 import { isCRTinnitusFrequency } from '../../model/cr-neuromodulation';
-import { FILTER_COPY, clampHz, formatHz, formatHzShort } from '../format';
+import { FILTER_COPY, clampHz, formatHzShort } from '../format';
 import { For, Show, createSignal } from 'solid-js';
 import { FrequencyVisualization } from './frequency-visualization';
 import { HearingCheckPanel, type HearingCheck } from './hearing-check';
@@ -235,9 +235,9 @@ export function Coach(
             }
           >
             {' '}
-            CR-тоны работают с частотой от 500 до 10 000 Гц, а ваша{' '}
-            {formatHz(hz())}: запуск недоступен. Вернитесь к частоте или
-            выберите другой звук.
+            CR-тоны работают с частотой от 500 до 10 000 Гц, а ваша вне этого
+            диапазона, поэтому запуск недоступен. Нажмите «Назад», чтобы выбрать
+            другой звук, или измените частоту на пульте.
           </Show>
           <Show when={props.session.selectedFilterId === 'decorrelating-am'}>
             {' '}

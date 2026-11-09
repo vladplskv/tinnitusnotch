@@ -4,6 +4,7 @@
  * notch edges to set the width, and during an AM hearing check the 17
  * control frequencies sit on the graph as dots.
  */
+import { clampCRTinnitusFrequency } from '../../model/cr-neuromodulation';
 import { FrequencyVisualization } from './frequency-visualization';
 import {
   frequencyAtPosition,
@@ -87,12 +88,17 @@ export function SpectrumStage(props: StageProps) {
     return () => observer.disconnect();
   });
 
+  /* The CR notch holds at the range edge, like the audio it shows. */
+  const notchCenter = () =>
+    props.session.selectedFilterId === 'cr-neuromodulation'
+      ? clampCRTinnitusFrequency(frequency())
+      : frequency();
   const x = (hz: number) => frequencyPosition(hz, plot().width);
   const notchEdges = () => {
     const term = Math.sqrt(1 / (q() * q()) + 4);
     return {
-      low: frequency() * ((term - 1 / q()) / 2),
-      high: frequency() * ((term + 1 / q()) / 2),
+      low: notchCenter() * ((term - 1 / q()) / 2),
+      high: notchCenter() * ((term + 1 / q()) / 2),
     };
   };
 
@@ -103,7 +109,7 @@ export function SpectrumStage(props: StageProps) {
       event.currentTarget as HTMLElement
     ).parentElement!.getBoundingClientRect();
     const hz = frequencyAtPosition(event.clientX - rect.left, rect.width);
-    const octaves = Math.max(0.05, 2 * Math.abs(Math.log2(hz / frequency())));
+    const octaves = Math.max(0.05, 2 * Math.abs(Math.log2(hz / notchCenter())));
     setQ(qFromOctaves(octaves));
   };
 
@@ -185,7 +191,7 @@ export function SpectrumStage(props: StageProps) {
           <Show when={!showDots()}>
             <span
               class="fw-notch-label"
-              style={{ left: `${x(frequency())}px` }}
+              style={{ left: `${x(notchCenter())}px` }}
             >
               вырез {octaveText(q())}
             </span>

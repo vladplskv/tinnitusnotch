@@ -156,6 +156,27 @@ describe('Therapy Filter visualization descriptions', () => {
     );
   });
 
+  test('draws the CR notch at the range edge, where the audio holds it', () => {
+    const session: TherapySession = {
+      ...baseSession,
+      tinnitusMatch: { ...baseSession.tinnitusMatch, frequencyHz: 20_000 },
+      selectedFilterId: 'cr-neuromodulation',
+      filterSettings: {
+        ...baseSession.filterSettings,
+        'cr-neuromodulation': {
+          notchedNoise: true,
+          noiseLevel: 0.3,
+          notchQ: 1,
+        },
+      },
+    };
+    const description = buildVisualizationDescription(session, stoppedPlayback);
+
+    expect(description.markers[0]?.frequencyHz).toBe(20_000);
+    expect(description.bands[0]?.fromHz).toBeCloseTo(6_180.3, 0);
+    expect(description.bands[0]?.toHz).toBeCloseTo(16_180.3, 0);
+  });
+
   test('draws no AM band over CR Neuromodulation, even with a confirmed AM band', () => {
     const session: TherapySession = {
       ...baseSession,

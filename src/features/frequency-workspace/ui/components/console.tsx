@@ -254,9 +254,14 @@ const noiseText = (level: number) =>
  */
 function CRDetails(props: WorkspaceProps) {
   const caps = () => props.snapshot.capabilities;
-  const frequencyHz = () => props.session.tinnitusMatch.frequencyHz;
-  /* Outside the range the tones hold at the nearest edge. */
+  /* While the fader is dragged the preview frequency is what sounds. */
+  const frequencyHz = () => displayedFrequency(props);
+  const inRange = () => isCRTinnitusFrequency(frequencyHz());
+  /* Outside the range running tones hold at the nearest edge. */
   const soundingHz = () => clampCRTinnitusFrequency(frequencyHz());
+  const sounding = () =>
+    props.snapshot.playback.status === 'playing' ||
+    props.snapshot.playback.status === 'paused';
   const cr = () => props.session.filterSettings['cr-neuromodulation'];
   const setLevel = (value: number) =>
     props.dispatch({
@@ -265,24 +270,28 @@ function CRDetails(props: WorkspaceProps) {
     });
   return (
     <>
-      <Show when={!isCRTinnitusFrequency(frequencyHz())}>
+      <Show when={!inRange()}>
         <p class="fw-module-hint" role="status">
           CR-тоны работают с частотой от{' '}
           {formatHz(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
-          {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, а сейчас{' '}
-          {formatHz(frequencyHz())}. Запуск недоступен, а уже идущие тоны звучат
-          как для {formatHz(soundingHz())}. Подберите частоту в модуле «Частота»
-          или выберите другой звук.
+          {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, сейчас{' '}
+          {formatHz(frequencyHz())}. Запуск недоступен
+          <Show when={sounding()} fallback=".">
+            ; уже идущие тоны звучат как для {formatHz(soundingHz())}.
+          </Show>{' '}
+          Подберите частоту в модуле «Частота» или выберите другой звук.
         </p>
       </Show>
-      <div class="fw-module-field">
-        <p class="fw-module-field__row">
-          <span class="fw-module-field__label">Тоны</span>
-          <span class="fw-module-field__value">
-            {formatHzList(getCRToneFrequenciesHz(soundingHz()))}
-          </span>
-        </p>
-      </div>
+      <Show when={inRange() || sounding()}>
+        <div class="fw-module-field">
+          <p class="fw-module-field__row">
+            <span class="fw-module-field__label">Тоны</span>
+            <span class="fw-module-field__value">
+              {formatHzList(getCRToneFrequenciesHz(soundingHz()))}
+            </span>
+          </p>
+        </div>
+      </Show>
       <p class="fw-module-hint">
         Тоны звучат в случайном порядке: три такта по четыре тона, затем два
         такта без тонов. Их громкость должна быть равна громкости шума в ушах:

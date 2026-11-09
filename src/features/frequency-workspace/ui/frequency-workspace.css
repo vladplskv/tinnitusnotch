@@ -2140,6 +2140,10 @@ body {
   font-size: var(--text-xs);
 }
 
+.fw-player__meta small[data-wrap] {
+  white-space: normal;
+}
+
 .fw-player__transport {
   display: flex;
   align-items: center;

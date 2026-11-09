@@ -34,6 +34,15 @@ export function PlayerBar(
   const crBlocked = () =>
     props.session.selectedFilterId === 'cr-neuromodulation' &&
     !isCRTinnitusFrequency(props.session.tinnitusMatch.frequencyHz);
+  /* Why start is blocked, in full: it replaces the frequency and may wrap. */
+  const blockedReason = () =>
+    status() !== 'stopped'
+      ? null
+      : amBlocked()
+        ? 'АМ: нет подходящей полосы'
+        : crBlocked()
+          ? 'CR: частота вне 500–10 000 Гц'
+          : null;
   const action = () => {
     const next = transportAction(props.snapshot);
     return next.state === 'start' && amBlocked()
@@ -77,17 +86,15 @@ export function PlayerBar(
         </span>
         <div class="fw-player__meta" role="status">
           <strong>{FILTER_COPY[props.session.selectedFilterId].name}</strong>
-          <small>
-            {formatHz(frequency())} ·{' '}
-            {amBlocked() && status() === 'stopped'
-              ? 'АМ: нет подходящей полосы'
-              : crBlocked() && status() === 'stopped'
-                ? 'CR: частота вне 500–10 000 Гц'
-                : action().intent === null && status() === 'stopped'
+          <small data-wrap={blockedReason() ? 'true' : undefined}>
+            {blockedReason() ??
+              `${formatHz(frequency())} · ${
+                action().intent === null && status() === 'stopped'
                   ? 'запуск после настройки'
                   : status() === 'playing'
                     ? 'идёт терапия'
-                    : playbackText(props.session, props.snapshot.playback)}
+                    : playbackText(props.session, props.snapshot.playback)
+              }`}
           </small>
         </div>
       </div>

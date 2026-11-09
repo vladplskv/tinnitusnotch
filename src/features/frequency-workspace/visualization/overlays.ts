@@ -1,4 +1,5 @@
 import type { TherapyPlaybackSnapshot, TherapySession } from '../index';
+import { clampCRTinnitusFrequency } from '../model/cr-neuromodulation';
 import { getActiveBandStatus } from '../playback/dsp/active-band';
 import {
   MAX_PLOTTED_FREQUENCY_HZ,
@@ -88,7 +89,12 @@ export function buildVisualizationDescription(
   if (session.selectedFilterId === 'cr-neuromodulation') {
     const cr = session.filterSettings['cr-neuromodulation'];
     return cr.notchedNoise
-      ? describeNotch(markers, displayedFrequencyHz, cr.notchQ, line)
+      ? describeNotch(
+          markers,
+          clampCRTinnitusFrequency(displayedFrequencyHz),
+          cr.notchQ,
+          line,
+        )
       : { markers, bands: [], responseCurves: [] };
   }
 
