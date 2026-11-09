@@ -1801,6 +1801,39 @@ body {
   font-size: var(--text-md);
 }
 
+/*
+ * CR settings on a desk: as many columns as fit, two with tones only and
+ * three with the noise mix, one on a phone.
+ */
+.fw-cr {
+  grid-column: 1 / -1;
+}
+
+.fw-cr__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1.25rem 1.5rem;
+}
+
+.fw-cr__column {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 1rem;
+}
+
+/* The four tones as a readout: equal cells, so no number ever breaks. */
+.fw-cr__tones {
+  display: grid;
+  margin: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* AM preparation: three numbered steps side by side on a desk. */
 .fw-am {
   grid-column: 1 / -1;

@@ -17,7 +17,7 @@ import {
   FILTER_COPY,
   HEARING_CORRECTION_COPY,
   formatHz,
-  formatHzList,
+  formatHzNumber,
   formatHzShort,
 } from '../format';
 import { For, Match, Show, Switch } from 'solid-js';
@@ -75,6 +75,9 @@ export function ConsoleModules(
         <SoundModule {...props} />
         <Show when={props.session.selectedFilterId === 'decorrelating-am'}>
           <AmModule {...props} />
+        </Show>
+        <Show when={props.session.selectedFilterId === 'cr-neuromodulation'}>
+          <CRModule {...props} />
         </Show>
       </div>
     </Show>
@@ -196,7 +199,14 @@ export function SoundModule(props: WorkspaceProps) {
           </p>
         </Match>
         <Match when={filterId() === 'cr-neuromodulation'}>
-          <CRDetails {...props} />
+          <p class="fw-module-hint">
+            Тоны и шум под ними настраиваются в модуле ниже.
+          </p>
+          <p class="fw-module-hint">
+            В исследованиях ACRN тоны слушали по 4–6 часов в день несколько
+            месяцев. Это экспериментальный метод: в контролируемом испытании он
+            не превзошёл плацебо.
+          </p>
         </Match>
       </Switch>
     </section>
@@ -249,10 +259,10 @@ const noiseText = (level: number) =>
   `${Math.round(noiseDb(level)).toString().replace('-', '−')} дБ`;
 
 /**
- * The four CR tones for the current frequency, or why there are none, and
- * the optional notched white noise under them.
+ * CR settings on a full-width desk, like AM preparation: the tones (or why
+ * there are none), the noise under them and, with noise on, its notch.
  */
-function CRDetails(props: WorkspaceProps) {
+export function CRModule(props: WorkspaceProps) {
   const caps = () => props.snapshot.capabilities;
   /* While the fader is dragged the preview frequency is what sounds. */
   const frequencyHz = () => displayedFrequency(props);
@@ -269,90 +279,103 @@ function CRDetails(props: WorkspaceProps) {
       value: Math.max(MIN_CR_NOISE_LEVEL, noiseLevelFromFader(value)),
     });
   return (
-    <>
-      <Show when={!inRange()}>
-        <p class="fw-module-hint" role="status">
-          CR-тоны работают с частотой от{' '}
-          {formatHz(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
-          {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, сейчас{' '}
-          {formatHz(frequencyHz())}.{' '}
-          <Switch fallback="Запуск недоступен.">
-            <Match when={props.snapshot.playback.status === 'playing'}>
-              Тоны звучат как для {formatHz(soundingHz())}.
-            </Match>
-            <Match when={props.snapshot.playback.status === 'paused'}>
-              Когда продолжите, тоны прозвучат как для {formatHz(soundingHz())}.
-            </Match>
-          </Switch>{' '}
-          Подберите частоту в модуле «Частота» или выберите другой звук.
-        </p>
-      </Show>
-      <Show when={inRange() || sounding()}>
-        <div class="fw-module-field">
-          <p class="fw-module-field__row">
-            <span class="fw-module-field__label">Тоны</span>
-            <span class="fw-module-field__value">
-              {formatHzList(getCRToneFrequenciesHz(soundingHz()))}
-            </span>
+    <section class="fw-module fw-cr" aria-labelledby="fw-cr-title">
+      <h2 id="fw-cr-title" class="fw-module__title">
+        CR-тоны
+      </h2>
+      <div class="fw-cr__columns">
+        <div class="fw-cr__column">
+          <Show when={!inRange()}>
+            <p class="fw-module-hint" role="status">
+              CR-тоны работают с частотой от{' '}
+              {formatHz(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
+              {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, сейчас{' '}
+              {formatHz(frequencyHz())}.{' '}
+              <Switch fallback="Запуск недоступен.">
+                <Match when={props.snapshot.playback.status === 'playing'}>
+                  Тоны звучат как для {formatHz(soundingHz())}.
+                </Match>
+                <Match when={props.snapshot.playback.status === 'paused'}>
+                  Когда продолжите, тоны прозвучат как для{' '}
+                  {formatHz(soundingHz())}.
+                </Match>
+              </Switch>{' '}
+              Подберите частоту в модуле «Частота» или выберите другой звук.
+            </p>
+          </Show>
+          <Show when={inRange() || sounding()}>
+            <div class="fw-module-field">
+              <p class="fw-module-field__row">
+                <span class="fw-module-field__label">Тоны, Гц</span>
+              </p>
+              <p class="fw-cr__tones">
+                <For each={getCRToneFrequenciesHz(soundingHz())}>
+                  {toneHz => <span>{formatHzNumber(toneHz)}</span>}
+                </For>
+              </p>
+            </div>
+          </Show>
+          <p class="fw-module-hint">
+            Тоны звучат в случайном порядке: три такта по четыре тона, затем два
+            такта без тонов. Их громкость должна быть равна громкости шума в
+            ушах: она задаётся регулятором плеера, как при подборе частоты.
           </p>
         </div>
-      </Show>
-      <p class="fw-module-hint">
-        Тоны звучат в случайном порядке: три такта по четыре тона, затем два
-        такта без тонов. Их громкость должна быть равна громкости шума в ушах:
-        она задаётся регулятором плеера, как при подборе частоты.
-      </p>
-      <Rocker
-        label="Белый шум под тонами"
-        value={cr().notchedNoise ? 'mix' : 'tones'}
-        disabled={!caps().canEdit}
-        options={[
-          { value: 'tones', label: 'Только тоны' },
-          { value: 'mix', label: 'Тоны + шум', hint: 'шум с вырезом' },
-        ]}
-        onChange={value =>
-          props.dispatch({
-            type: 'set-cr-notched-noise',
-            value: value === 'mix',
-          })
-        }
-      />
-      <Show when={cr().notchedNoise}>
-        <div class="fw-module-field">
-          <p class="fw-module-field__row">
-            <span class="fw-module-field__label">Громкость шума</span>
-            <span class="fw-module-field__value">
-              {noiseText(cr().noiseLevel)}
-            </span>
-          </p>
-          <Fader
-            label="Громкость шума относительно тонов"
-            value={faderFromNoiseLevel(cr().noiseLevel)}
-            valueText={`${noiseText(cr().noiseLevel)} относительно тонов`}
-            detents={6}
-            ticks={[
-              { at: 0, label: 'тише' },
-              { at: 0.5 },
-              { at: 1, label: 'как тоны' },
-            ]}
-            fill
+        <div class="fw-cr__column">
+          <Rocker
+            label="Белый шум под тонами"
+            value={cr().notchedNoise ? 'mix' : 'tones'}
             disabled={!caps().canEdit}
-            onInput={setLevel}
-            onCommit={setLevel}
+            options={[
+              { value: 'tones', label: 'Только тоны' },
+              { value: 'mix', label: 'Тоны + шум', hint: 'шум с вырезом' },
+            ]}
+            onChange={value =>
+              props.dispatch({
+                type: 'set-cr-notched-noise',
+                value: value === 'mix',
+              })
+            }
           />
+          <Show when={cr().notchedNoise}>
+            <div class="fw-module-field">
+              <p class="fw-module-field__row">
+                <span class="fw-module-field__label">Громкость шума</span>
+                <span class="fw-module-field__value">
+                  {noiseText(cr().noiseLevel)}
+                </span>
+              </p>
+              <Fader
+                label="Громкость шума относительно тонов"
+                value={faderFromNoiseLevel(cr().noiseLevel)}
+                valueText={`${noiseText(cr().noiseLevel)} относительно тонов`}
+                detents={6}
+                ticks={[
+                  { at: 0, label: 'тише' },
+                  { at: 0.5 },
+                  { at: 1, label: 'как тоны' },
+                ]}
+                fill
+                disabled={!caps().canEdit}
+                onInput={setLevel}
+                onCommit={setLevel}
+              />
+            </div>
+          </Show>
         </div>
-        <NotchWidthField
-          q={cr().notchQ}
-          disabled={!caps().canEdit}
-          onChange={value => props.dispatch({ type: 'set-cr-notch-q', value })}
-        />
-      </Show>
-      <p class="fw-module-hint">
-        В исследованиях ACRN тоны слушали по 4–6 часов в день несколько месяцев.
-        Это экспериментальный метод: в контролируемом испытании он не превзошёл
-        плацебо.
-      </p>
-    </>
+        <Show when={cr().notchedNoise}>
+          <div class="fw-cr__column">
+            <NotchWidthField
+              q={cr().notchQ}
+              disabled={!caps().canEdit}
+              onChange={value =>
+                props.dispatch({ type: 'set-cr-notch-q', value })
+              }
+            />
+          </div>
+        </Show>
+      </div>
+    </section>
   );
 }
 
