@@ -187,23 +187,99 @@ interface FaderProps {
 }
 
 /**
- * A native range input dressed as a mixing-desk fader: grab the cap or tap
- * the groove, arrow keys step one unit. Works the same with a mouse, a
- * finger and a keyboard, and the browser keeps page scrolling on phones.
+ * A native range input dressed as a mixing-desk fader. The input keeps the
+ * keyboard and assistive tech; pointers are read by the fader itself so a
+ * finger only moves it once the gesture turns sideways. A vertical swipe
+ * that starts on the fader scrolls the page and leaves the value alone.
  */
 export function Fader(props: FaderProps) {
   const resolution = () => props.resolution ?? 100;
+  const [dragging, setDragging] = createSignal(false);
   let lastDetent = -1;
-  const read = (input: HTMLInputElement) => Number(input.value) / resolution();
+  let lastValue = Number.NaN;
+  let input: HTMLInputElement | undefined;
+  let travel: HTMLDivElement | undefined;
+  let pointer: {
+    readonly id: number;
+    readonly startX: number;
+    readonly startY: number;
+  } | null = null;
+
+  const apply = (raw: number) => {
+    const value = Math.round(clamp01(raw) * resolution()) / resolution();
+    if (value === lastValue) return value;
+    lastValue = value;
+    if (props.detents) {
+      const detent = Math.floor(value * props.detents);
+      if (detent !== lastDetent) {
+        haptic(detent === 0 || detent === props.detents ? 14 : 5);
+        lastDetent = detent;
+      }
+    }
+    props.onInput(value);
+    return value;
+  };
+  /* The scale is inset by half a cap, so its box is the cap's travel. */
+  const valueAt = (clientX: number) => {
+    const rect = travel?.getBoundingClientRect();
+    return rect && rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+  };
+  const engage = (fader: HTMLDivElement, event: PointerEvent) => {
+    fader.setPointerCapture(event.pointerId);
+    input?.focus({ preventScroll: true });
+    lastValue = Number.NaN;
+    setDragging(true);
+    apply(valueAt(event.clientX));
+  };
+  const release = (event: PointerEvent, commit: boolean) => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    pointer = null;
+    if (!dragging()) return;
+    setDragging(false);
+    if (commit) props.onCommit(apply(valueAt(event.clientX)));
+  };
 
   return (
     <div
       class="fw-fader"
       data-fill={props.fill ? 'true' : undefined}
       data-disabled={props.disabled ? 'true' : undefined}
+      data-dragging={dragging() ? 'true' : undefined}
       style={{ '--value': String(clamp01(props.value)) }}
+      onPointerDown={event => {
+        if (props.disabled || pointer || event.button !== 0) return;
+        pointer = {
+          id: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+        };
+        /* A mouse means it; a finger may be scrolling past. */
+        if (event.pointerType === 'mouse') {
+          event.preventDefault();
+          engage(event.currentTarget, event);
+        }
+      }}
+      onPointerMove={event => {
+        if (!pointer || pointer.id !== event.pointerId) return;
+        if (!dragging()) {
+          const deltaX = Math.abs(event.clientX - pointer.startX);
+          const deltaY = Math.abs(event.clientY - pointer.startY);
+          if (deltaX > 8 && deltaX > deltaY) engage(event.currentTarget, event);
+          return;
+        }
+        event.preventDefault();
+        apply(valueAt(event.clientX));
+      }}
+      onPointerUp={event => release(event, true)}
+      onPointerCancel={event => release(event, true)}
     >
-      <div class="fw-fader__scale" aria-hidden="true">
+      <div
+        ref={element => {
+          travel = element;
+        }}
+        class="fw-fader__scale"
+        aria-hidden="true"
+      >
         <For each={props.ticks ?? []}>
           {tick => (
             <>
@@ -225,6 +301,9 @@ export function Fader(props: FaderProps) {
         </For>
       </div>
       <input
+        ref={element => {
+          input = element;
+        }}
         class="fw-fader__input"
         type="range"
         min="0"
@@ -235,17 +314,12 @@ export function Fader(props: FaderProps) {
         aria-label={props.label}
         aria-valuetext={props.valueText}
         onInput={event => {
-          const value = read(event.currentTarget);
-          if (props.detents) {
-            const detent = Math.floor(value * props.detents);
-            if (detent !== lastDetent) {
-              haptic(detent === 0 || detent === props.detents ? 14 : 5);
-              lastDetent = detent;
-            }
-          }
-          props.onInput(value);
+          lastValue = Number.NaN;
+          apply(Number(event.currentTarget.value) / resolution());
         }}
-        onChange={event => props.onCommit(read(event.currentTarget))}
+        onChange={event =>
+          props.onCommit(Number(event.currentTarget.value) / resolution())
+        }
       />
     </div>
   );

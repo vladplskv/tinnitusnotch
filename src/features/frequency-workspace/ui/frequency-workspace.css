@@ -968,10 +968,15 @@ body {
   display: grid;
   min-width: 0;
   padding-top: 1.125rem;
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .fw-fader[data-disabled='true'] {
   opacity: 0.4;
+  cursor: default;
 }
 
 .fw-fader__scale {
@@ -1024,11 +1029,8 @@ body {
   margin: 0;
   background: none;
   appearance: none;
-  cursor: pointer;
-}
-
-.fw-fader__input:disabled {
-  cursor: default;
+  /* The fader reads pointers itself; see Fader in controls.tsx. */
+  pointer-events: none;
 }
 
 .fw-fader__input::-webkit-slider-runnable-track {
@@ -1072,7 +1074,7 @@ body {
   transition: transform 120ms ease;
 }
 
-.fw-fader__input:active::-webkit-slider-thumb {
+.fw-fader[data-dragging='true'] .fw-fader__input::-webkit-slider-thumb {
   transform: translateY(2px);
   box-shadow:
     0 2px 0 #050505,
