@@ -4,6 +4,7 @@ import {
   applyTherapyPreset,
   createTherapyPreset,
   isSessionDirtyForPreset,
+  isTherapyPresetNameTaken,
   normalizeTherapyPresetName,
   renameTherapyPreset,
   replaceTherapyPresetSnapshot,
@@ -238,5 +239,13 @@ describe('Therapy Presets', () => {
         }),
       }),
     ).toThrow('cr-frequency-out-of-range');
+  });
+
+  it('tells the forms a name is taken the way saving would refuse it', () => {
+    const presets = [{ id: 'a', name: 'Вечер' }];
+
+    expect(isTherapyPresetNameTaken('  вечер ', presets)).toBe(true);
+    expect(isTherapyPresetNameTaken('Вечер', presets, 'a')).toBe(false);
+    expect(isTherapyPresetNameTaken('Утро', presets)).toBe(false);
   });
 });

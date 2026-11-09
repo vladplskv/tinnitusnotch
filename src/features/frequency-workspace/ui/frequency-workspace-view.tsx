@@ -14,7 +14,6 @@ import { PresetCreateForm, PresetList } from './components/presets-panel';
 import {
   ConfirmationPanel,
   ModalDialog,
-  NotificationCenter,
   RecoveryPanel,
 } from './components/workspace-feedback';
 import './frequency-workspace.css';
@@ -82,12 +81,6 @@ export function FrequencyWorkspaceView(props: FrequencyWorkspaceViewProps) {
             readSpectrum={props.readSpectrum}
           />
         )}
-      </Show>
-      <Show when={!presetsOpen()}>
-        <NotificationCenter
-          notifications={props.snapshot.notifications}
-          dispatch={props.dispatch}
-        />
       </Show>
       <Show when={props.snapshot.pendingConfirmation}>
         {confirmation => (
@@ -225,14 +218,11 @@ function ReadyWorkspace(props: ReadyWorkspaceProps) {
             <h3>Сохранить текущую настройку</h3>
             <PresetCreateForm
               id="sheet-preset-name"
+              presets={props.snapshot.presets}
               canSave={capabilities().canSavePreset}
               dispatch={props.dispatch}
             />
           </div>
-          <NotificationCenter
-            notifications={props.snapshot.notifications}
-            dispatch={props.dispatch}
-          />
         </ModalDialog>
       </Show>
     </div>

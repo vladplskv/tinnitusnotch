@@ -26,18 +26,27 @@ export function normalizeTherapyPresetName(name: string): string {
   return normalized;
 }
 
+export function isTherapyPresetNameTaken(
+  name: string,
+  existingPresets: readonly Pick<TherapyPreset, 'id' | 'name'>[],
+  excludedId?: string,
+): boolean {
+  const normalized = name.trim();
+  return existingPresets.some(
+    preset =>
+      preset.id !== excludedId &&
+      preset.name.localeCompare(normalized, undefined, {
+        sensitivity: 'accent',
+      }) === 0,
+  );
+}
+
 function assertNameIsAvailable(
   name: string,
   existingPresets: readonly TherapyPreset[],
   excludedId?: string,
 ) {
-  const collision = existingPresets.some(
-    preset =>
-      preset.id !== excludedId &&
-      preset.name.localeCompare(name, undefined, { sensitivity: 'accent' }) ===
-        0,
-  );
-  if (collision) {
+  if (isTherapyPresetNameTaken(name, existingPresets, excludedId)) {
     throw new Error(`A Therapy Preset named "${name}" already exists`);
   }
 }
