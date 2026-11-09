@@ -281,7 +281,7 @@ function CRDetails(props: WorkspaceProps) {
               Тоны звучат как для {formatHz(soundingHz())}.
             </Match>
             <Match when={props.snapshot.playback.status === 'paused'}>
-              После продолжения тоны прозвучат как для {formatHz(soundingHz())}.
+              Когда продолжите, тоны прозвучат как для {formatHz(soundingHz())}.
             </Match>
           </Switch>{' '}
           Подберите частоту в модуле «Частота» или выберите другой звук.
