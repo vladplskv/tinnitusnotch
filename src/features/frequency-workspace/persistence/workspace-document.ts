@@ -600,11 +600,10 @@ export function decodeWorkspaceDocument(
    * CR came after the first stored documents. Its missing entry takes the
    * defaults quietly; only a stored entry that is wrong counts as a repair.
    */
-  const crNeuromodulationStored = isRecord(
-    rawFilterSettings['cr-neuromodulation'],
-  );
-  const rawCRNeuromodulation = crNeuromodulationStored
-    ? (rawFilterSettings['cr-neuromodulation'] as Record<string, unknown>)
+  const crNeuromodulationStored =
+    rawFilterSettings['cr-neuromodulation'] !== undefined;
+  const rawCRNeuromodulation = isRecord(rawFilterSettings['cr-neuromodulation'])
+    ? rawFilterSettings['cr-neuromodulation']
     : {};
   const repairCR = (field: string) => {
     if (crNeuromodulationStored) {

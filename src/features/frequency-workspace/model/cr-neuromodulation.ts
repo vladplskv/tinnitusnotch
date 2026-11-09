@@ -22,6 +22,20 @@ export function isCRTinnitusFrequency(frequencyHz: number): boolean {
   );
 }
 
+/*
+ * Start is blocked outside the range; a live edit past an edge keeps the
+ * edge tones and notch instead of stopping therapy mid-session.
+ */
+export function clampCRTinnitusFrequency(frequencyHz: number): number {
+  if (!Number.isFinite(frequencyHz)) {
+    throw new RangeError('Invalid CR Neuromodulation tinnitus frequency');
+  }
+  return Math.min(
+    CR_MAX_TINNITUS_FREQUENCY_HZ,
+    Math.max(CR_MIN_TINNITUS_FREQUENCY_HZ, frequencyHz),
+  );
+}
+
 export function getCRToneFrequenciesHz(
   tinnitusFrequencyHz: number,
 ): CRToneFrequenciesHz {

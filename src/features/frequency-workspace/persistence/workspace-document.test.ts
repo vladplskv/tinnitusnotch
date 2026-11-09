@@ -484,4 +484,16 @@ describe('workspace document', () => {
       },
     });
   });
+
+  it('reports a stored CR entry that is not an object as a repair', () => {
+    const encoded = JSON.parse(
+      encodeWorkspaceDocument(createInitialWorkspaceDocument()),
+    );
+    encoded.session.filterSettings['cr-neuromodulation'] = null;
+    const decoded = decodeWorkspaceDocument(JSON.stringify(encoded));
+
+    expect(decoded.kind === 'decoded' && decoded.repairedFields).toContain(
+      'session.filterSettings.cr-neuromodulation.schemaVersion',
+    );
+  });
 });

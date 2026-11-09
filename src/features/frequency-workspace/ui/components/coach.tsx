@@ -3,7 +3,8 @@
  * to the therapy sound and, for AM, the hearing check. It writes to the
  * same session as the console.
  */
-import { FILTER_COPY, clampHz, formatHzShort } from '../format';
+import { isCRTinnitusFrequency } from '../../model/cr-neuromodulation';
+import { FILTER_COPY, clampHz, formatHz, formatHzShort } from '../format';
 import { For, Show, createSignal } from 'solid-js';
 import { FrequencyVisualization } from './frequency-visualization';
 import { HearingCheckPanel, type HearingCheck } from './hearing-check';
@@ -225,8 +226,19 @@ export function Coach(
       <Show when={step() === 5}>
         <h2 class="fw-coach-question">Готово</h2>
         <p class="fw-coach__lede">
-          Ваша частота {formatHzShort(hz())}, звук:{' '}
-          {FILTER_COPY[props.session.selectedFilterId].name.toLowerCase()}.
+          Ваша частота {formatHzShort(hz())}, звук «
+          {FILTER_COPY[props.session.selectedFilterId].name}».
+          <Show
+            when={
+              props.session.selectedFilterId === 'cr-neuromodulation' &&
+              !isCRTinnitusFrequency(hz())
+            }
+          >
+            {' '}
+            CR-тоны работают с частотой от 500 до 10 000 Гц, а ваша{' '}
+            {formatHz(hz())}: запуск недоступен. Вернитесь к частоте или
+            выберите другой звук.
+          </Show>
           <Show when={props.session.selectedFilterId === 'decorrelating-am'}>
             {' '}
             <Show

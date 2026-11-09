@@ -9,10 +9,17 @@ import {
   CR_MAX_TINNITUS_FREQUENCY_HZ,
   CR_MIN_TINNITUS_FREQUENCY_HZ,
   MIN_CR_NOISE_LEVEL,
+  clampCRTinnitusFrequency,
   getCRToneFrequenciesHz,
   isCRTinnitusFrequency,
 } from '../../model/cr-neuromodulation';
-import { FILTER_COPY, HEARING_CORRECTION_COPY, formatHzShort } from '../format';
+import {
+  FILTER_COPY,
+  HEARING_CORRECTION_COPY,
+  formatHz,
+  formatHzList,
+  formatHzShort,
+} from '../format';
 import { For, Match, Show, Switch } from 'solid-js';
 import { AmBand, HearingCheckPanel, type HearingCheck } from './hearing-check';
 import {
@@ -248,6 +255,8 @@ const noiseText = (level: number) =>
 function CRDetails(props: WorkspaceProps) {
   const caps = () => props.snapshot.capabilities;
   const frequencyHz = () => props.session.tinnitusMatch.frequencyHz;
+  /* Outside the range the tones hold at the nearest edge. */
+  const soundingHz = () => clampCRTinnitusFrequency(frequencyHz());
   const cr = () => props.session.filterSettings['cr-neuromodulation'];
   const setLevel = (value: number) =>
     props.dispatch({
@@ -256,28 +265,29 @@ function CRDetails(props: WorkspaceProps) {
     });
   return (
     <>
-      <Show
-        when={isCRTinnitusFrequency(frequencyHz())}
-        fallback={
-          <p class="fw-module-hint" role="status">
-            CR-тоны работают с частотой от{' '}
-            {formatHzShort(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
-            {formatHzShort(CR_MAX_TINNITUS_FREQUENCY_HZ)}. Сейчас{' '}
-            {formatHzShort(frequencyHz())}, запуск недоступен.
-          </p>
-        }
-      >
-        <div class="fw-module-field">
-          <p class="fw-module-field__row">
-            <span class="fw-module-field__label">Тоны</span>
-            <span class="fw-module-field__value">
-              {getCRToneFrequenciesHz(frequencyHz())
-                .map(formatHzShort)
-                .join(' · ')}
-            </span>
-          </p>
-        </div>
+      <Show when={!isCRTinnitusFrequency(frequencyHz())}>
+        <p class="fw-module-hint" role="status">
+          CR-тоны работают с частотой от{' '}
+          {formatHz(CR_MIN_TINNITUS_FREQUENCY_HZ)} до{' '}
+          {formatHz(CR_MAX_TINNITUS_FREQUENCY_HZ)}, а сейчас{' '}
+          {formatHz(frequencyHz())}. Запуск недоступен, а уже идущие тоны звучат
+          как для {formatHz(soundingHz())}. Подберите частоту в модуле «Частота»
+          или выберите другой звук.
+        </p>
       </Show>
+      <div class="fw-module-field">
+        <p class="fw-module-field__row">
+          <span class="fw-module-field__label">Тоны</span>
+          <span class="fw-module-field__value">
+            {formatHzList(getCRToneFrequenciesHz(soundingHz()))}
+          </span>
+        </p>
+      </div>
+      <p class="fw-module-hint">
+        Тоны звучат в случайном порядке: три такта по четыре тона, затем два
+        такта без тонов. Их громкость должна быть равна громкости шума в ушах:
+        она задаётся регулятором плеера, как при подборе частоты.
+      </p>
       <Rocker
         label="Белый шум под тонами"
         value={cr().notchedNoise ? 'mix' : 'tones'}
@@ -323,11 +333,6 @@ function CRDetails(props: WorkspaceProps) {
           onChange={value => props.dispatch({ type: 'set-cr-notch-q', value })}
         />
       </Show>
-      <p class="fw-module-hint">
-        Тоны звучат в случайном порядке: три такта по четыре тона, затем два
-        такта тишины. Точная частота здесь важнее всего, а громкость тонов
-        должна быть равна громкости шума в ушах.
-      </p>
       <p class="fw-module-hint">
         В исследованиях ACRN тоны слушали по 4–6 часов в день несколько месяцев.
         Это экспериментальный метод: в контролируемом испытании он не превзошёл

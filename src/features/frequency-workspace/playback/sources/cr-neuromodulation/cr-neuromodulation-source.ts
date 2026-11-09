@@ -1,4 +1,5 @@
 import workletUrl from '../../worklets/cr-neuromodulation-processor.worklet.ts?worker&url';
+import { clampCRTinnitusFrequency } from '../../../model/cr-neuromodulation';
 import { createRandomNoiseBuffer } from '../random-noise-buffer';
 import type {
   PlaybackSourceConfiguration,
@@ -127,7 +128,9 @@ export const crNeuromodulationSourceFactory: PlaybackSourceFactory = {
     noise.buffer = createRandomNoiseBuffer(context);
     noise.loop = true;
     notch.type = 'notch';
-    notch.frequency.value = initial.session.tinnitusMatch.frequencyHz;
+    notch.frequency.value = clampCRTinnitusFrequency(
+      initial.session.tinnitusMatch.frequencyHz,
+    );
     notch.Q.value = initial.session.filterSettings['cr-neuromodulation'].notchQ;
     level.gain.value = noiseGain(initial);
     noise.connect(notch).connect(level).connect(request.output);
@@ -144,7 +147,7 @@ export const crNeuromodulationSourceFactory: PlaybackSourceFactory = {
         });
         const now = context.currentTime;
         notch.frequency.setTargetAtTime(
-          session.tinnitusMatch.frequencyHz,
+          clampCRTinnitusFrequency(session.tinnitusMatch.frequencyHz),
           now,
           0.01,
         );

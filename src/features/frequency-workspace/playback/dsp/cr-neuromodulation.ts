@@ -1,6 +1,6 @@
 import {
   CR_MAX_TINNITUS_FREQUENCY_HZ,
-  CR_MIN_TINNITUS_FREQUENCY_HZ,
+  clampCRTinnitusFrequency,
   getCRToneFrequenciesHz,
   type CRToneFrequenciesHz,
 } from '../../model/cr-neuromodulation';
@@ -46,20 +46,6 @@ function createSeededRandom(seed: number): () => number {
   };
 }
 
-/*
- * Start is blocked outside the range; a live edit past an edge keeps the
- * edge tones instead of stopping therapy mid-session.
- */
-function clampTinnitusFrequency(frequencyHz: number): number {
-  if (!Number.isFinite(frequencyHz)) {
-    throw new RangeError('Invalid CR Neuromodulation tinnitus frequency');
-  }
-  return Math.min(
-    CR_MAX_TINNITUS_FREQUENCY_HZ,
-    Math.max(CR_MIN_TINNITUS_FREQUENCY_HZ, frequencyHz),
-  );
-}
-
 export function createCRNeuromodulationRenderer(
   configuration: CRNeuromodulationConfiguration,
 ): CRNeuromodulationRenderer {
@@ -74,7 +60,7 @@ export function createCRNeuromodulationRenderer(
   const rampSamples = Math.round(sampleRate * CR_RAMP_SECONDS);
   const order = [0, 1, 2, 3];
   let tonesHz: CRToneFrequenciesHz = getCRToneFrequenciesHz(
-    clampTinnitusFrequency(configuration.tinnitusFrequencyHz),
+    clampCRTinnitusFrequency(configuration.tinnitusFrequencyHz),
   );
   let slot = -1;
   let sampleInSlot = slotSamples;
@@ -128,7 +114,7 @@ export function createCRNeuromodulationRenderer(
       }
     },
     setTinnitusFrequency(frequencyHz) {
-      tonesHz = getCRToneFrequenciesHz(clampTinnitusFrequency(frequencyHz));
+      tonesHz = getCRToneFrequenciesHz(clampCRTinnitusFrequency(frequencyHz));
     },
   };
 }

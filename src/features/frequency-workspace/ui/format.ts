@@ -12,6 +12,12 @@ export function formatHz(frequencyHz: number): string {
   return `${groupFormatter.format(Math.round(frequencyHz))} Гц`;
 }
 
+/** Several exact values with one unit, for example "3 047 · 3 590 Гц". */
+export function formatHzList(frequenciesHz: readonly number[]): string {
+  const values = frequenciesHz.map(hz => groupFormatter.format(Math.round(hz)));
+  return `${values.join(' · ')} Гц`;
+}
+
 /** Compact value for summaries and axes, for example "2,8 кГц". */
 export function formatHzShort(frequencyHz: number): string {
   if (frequencyHz < 1_000) return `${Math.round(frequencyHz)} Гц`;
