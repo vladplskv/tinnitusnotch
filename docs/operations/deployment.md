@@ -9,3 +9,5 @@
 | https://tinnitusnotch-preview.vlad-plskv.workers.dev | Вручную: `pnpm deploy:preview` из рабочей копии, нужен `wrangler login`. |
 
 Роутер берёт базовый путь из `import.meta.env.BASE_URL`, поэтому одна и та же сборка работает и в корне, и под `/tinnitusnotch/`.
+
+Посещения считает Cloudflare Web Analytics (панель Cloudflare → Analytics & Logs → Web Analytics). Beacon подключается только на `tinnitusnotch.vlad-plskv.workers.dev`, поэтому локальный запуск, preview-воркер и GitHub Pages в статистику не попадают.
