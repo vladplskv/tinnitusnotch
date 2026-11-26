@@ -1,6 +1,6 @@
 # Разработка
 
-Нужны Node.js 22 или новее и pnpm 11: lockfile и `pnpm-workspace.yaml` требуют именно его, версия закреплена в `packageManager`.
+В CI используется Node.js 26.13.1. Для ветки Node.js 22 требуется как минимум 22.13. Версия pnpm закреплена в поле `packageManager` файла `package.json`.
 
 ```bash
 pnpm install

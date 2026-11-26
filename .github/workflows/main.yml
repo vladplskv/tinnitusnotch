@@ -1,58 +1,46 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: Restore legacy GitHub Pages site
 
 on:
-  # Manual only for now: GitHub Pages keeps serving the previous site until a
-  # release is approved. The new version lives on the preview worker
-  # (`pnpm deploy:preview`). Run this from the Actions tab to publish main.
   workflow_dispatch:
 
-# Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow one concurrent deployment
 concurrency:
-  group: 'pages'
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        node-version: [22]
     steps:
-      - uses: actions/checkout@v5
-      - name: Install pnpm
-        # The version comes from packageManager in package.json.
-        uses: pnpm/action-setup@v4
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: "pnpm"
-      - name: Install dependencies
-        run: pnpm install
-      - name: Build
-        run: pnpm build
+          # Source of the successful Pages deployment on 2026-02-28.
+          ref: da0785a35b6fef30e04d12063d6d6ac54d144fa2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
           UMAMI_WEBSITE_ID: ${{ vars.UMAMI_WEBSITE_ID }}
           UMAMI_SCRIPT_SRC: ${{ vars.UMAMI_SCRIPT_SRC }}
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
-          # The static client build
-          path: './dist/client'
-      - name: Deploy to GitHub Pages
-        id: deployment
+          path: dist
+      - id: deployment
         uses: actions/deploy-pages@v4

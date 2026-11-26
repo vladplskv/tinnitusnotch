@@ -1,13 +1,122 @@
-# Развёртывание
+# Публикация в Yandex Object Storage
 
-Сборка `pnpm build` кладёт статический сайт в `dist/client`.
+GitHub Actions собирает SolidJS-приложение из ветки `main`. Браузер получает HTML, JavaScript, CSS, шрифты и AudioWorklet с одного домена. Object Storage обслуживает файлы по [стандартному HTTPS-адресу бакета](https://tinnitusnotch.website.yandexcloud.net/). DNS и сертификатом этого адреса управляет Yandex Cloud. Node.js нужен только для сборки. Внешних шрифтов, аналитики, CDN и обязательных внешних API в клиенте нет.
 
-| Адрес | Как публикуется |
+## Прежний сайт на GitHub Pages
+
+[Старая версия приложения](https://vladplskv.github.io/tinnitusnotch/) продолжает работать по прежнему адресу. Настройки GitHub Pages и DNS старого сайта сохраняются. Push в `main` обновляет только сайт в Object Storage.
+
+Если старую публикацию потребуется восстановить, откройте **Actions → Restore legacy GitHub Pages site → Run workflow** и выберите `main`. Workflow собирает закреплённый коммит `da0785a` с pnpm 10 и базовым путём `/tinnitusnotch/`. Для обычного выпуска в Yandex этот шаг не требуется. [Успешная публикация старого сайта](https://github.com/vladplskv/tinnitusnotch/actions/runs/22522854265)
+
+## Бакет и сервисный аккаунт
+
+Если бакет и сервисный аккаунт уже созданы, проверьте имя, содержимое бакета и права перед включением публичного доступа.
+
+1. Для стандартного адреса используется бакет `tinnitusnotch`. Убедитесь, что в бакете только публичные файлы сайта. Для нового бакета откройте **Object Storage → Создать бакет**, выберите имя бакета и класс **Стандартное**. Для этой схемы оставьте версионирование выключенным. Хостинг требует доступа из интернета и несовместим с шифрованием бакета ключом KMS. [Руководство Yandex Cloud](https://yandex.cloud/ru/docs/tutorials/web/static/console)
+2. В бакете откройте **Настройки → Основные**. Инструкция Yandex для режима хостинга предписывает открыть **Чтение объектов** и **Чтение списка объектов** для всех. Чтение настроек оставьте ограниченным. Запись доступна сервисному аккаунту. [Настройка хостинга](https://yandex.cloud/ru/docs/storage/operations/hosting/setup)
+3. В **Настройки → Веб-сайт** выберите **Хостинг**. В поля **Главная страница** и **Страница ошибки** введите `index.html` без начального слеша. Это одна SPA с маршрутами `/`, `/white-noise` и `/am-therapy`. При прямом переходе на старый адрес хранилище может вернуть HTTP 404 с содержимым приложения. Браузер запустит роутер и перейдёт на главную с сохранением query и fragment. Мониторинг главной страницы настройте на `/`. [Страница ошибок для SPA](https://yandex.cloud/ru/docs/storage/operations/hosting/setup)
+4. Для нового аккаунта откройте **Identity and Access Management → Сервисные аккаунты → Создать сервисный аккаунт**. Роли на каталог для CI не требуются. В самом бакете откройте **Безопасность → Права доступа → Назначить роли**, выберите аккаунт и выдайте `storage.uploader`. Он сможет записывать и перезаписывать файлы. Удаление объектов и изменение конфигурации бакета остаются у владельца. Проверьте также унаследованные права существующего аккаунта. [Назначение роли на бакет](https://yandex.cloud/ru/docs/storage/operations/buckets/iam-access) · [Права роли](https://yandex.cloud/ru/docs/storage/security/#storage-uploader)
+5. На странице сервисного аккаунта выберите **Создать новый ключ → Создать статический ключ доступа**. Сразу сохраните идентификатор и показанный один раз секрет в GitHub. При ротации создайте второй ключ, замените оба секрета, проверьте публикацию и отзовите старый ключ. [Статический ключ для AWS CLI](https://yandex.cloud/ru/docs/storage/tools/aws-cli)
+
+GitHub OIDC поддерживает обмен токена workflow на IAM-токен через федерацию сервисных аккаунтов. Для подписи S3-запросов AWS CLI потребуется ещё выпуск эфемерного ключа с дополнительным IAM-разрешением. Вариант с Yandex STS тоже требует исходный статический ключ. Для одного бакета выбран отдельный ключ с правами только на этот бакет. [Федерация GitHub](https://yandex.cloud/ru/docs/tutorials/serverless/ci-cd-github-functions) · [Эфемерные ключи](https://yandex.cloud/ru/docs/storage/operations/buckets/manage-ephemeral-keys) · [Yandex STS](https://yandex.cloud/ru/docs/iam/concepts/authorization/sts)
+
+## Если понадобится собственный домен
+
+Для текущего адреса этот раздел можно пропустить. Чтобы позднее подключить свой домен напрямую к Object Storage, понадобится бакет с именем, в точности совпадающим с этим доменом. Выдайте сервисному аккаунту доступ к новому бакету и обновите `S3_BUCKET` перед следующей публикацией. [HTTPS на стандартном адресе](https://yandex.cloud/ru/docs/storage/operations/hosting/certificate)
+
+1. В **Certificate Manager → Сертификаты → Добавить → Сертификат Let's Encrypt** укажите основной домен и выберите проверку **DNS**. Откройте созданный сертификат и скопируйте имя и значение проверочной записи **CNAME** в авторитетную DNS-зону. Для этого имени `_acme-challenge` должна быть ровно одна CNAME-запись. Дождитесь статуса `Issued`. Оставьте проверочную запись для автоматических продлений. [Выпуск сертификата](https://yandex.cloud/ru/docs/certificate-manager/operations/managed/cert-create) · [Условия продления](https://yandex.cloud/ru/services/certificate-manager)
+2. В бакете откройте **Безопасность → HTTPS → Настроить**, выберите источник **Certificate Manager**, выданный сертификат и сохраните. Применение может занять до 30 минут. Затем Object Storage сам перенаправляет HTTP на HTTPS. [Подключение сертификата](https://yandex.cloud/ru/docs/storage/operations/hosting/certificate)
+3. Когда сборка опубликована и сертификат подключён, направьте пользователей на сайт. Цель DNS-записи содержит **website**. Адрес `storage.yandexcloud.net` используется для S3 API. У регистратора или DNS-провайдера выберите запись по таблице. Примеры ниже показывают два варианта **основного** имени. [Собственный домен](https://yandex.cloud/ru/docs/storage/operations/hosting/own-domain)
+
+| Основной адрес и имя бакета | Имя записи | Тип | Цель | TTL |
+| --- | --- | --- | --- | --- |
+| `example.ru` | `@` | ANAME либо ALIAS с поддержкой внешней цели в корне зоны | `example.ru.website.yandexcloud.net.` | 600 с |
+| `www.example.ru` | `www` | CNAME | `www.example.ru.website.yandexcloud.net.` | 600 с |
+
+Используйте обычное DNS-разрешение. Если провайдер предлагает проксирование, выберите **DNS only**. Если у регистратора нет ANAME/ALIAS для корня, проще использовать поддомен. Для обязательного корневого адреса можно делегировать зону провайдеру с ANAME, например Yandex Cloud DNS. Сначала перенесите действующие записи зоны, включая почту, затем измените NS у регистратора. Не фиксируйте IP адреса хранилища в A-записи. Если нужны одновременно корень и `www`, для второго имени Yandex описывает отдельный бакет с переадресацией и HTTPS для этого имени. [Несколько доменных имён](https://yandex.cloud/ru/docs/storage/operations/hosting/multiple-domains)
+
+## GitHub и первый запуск
+
+В **Settings → Environments** создайте окружение `production`. В **Deployment branches and tags** разрешите ветку `main`. В настройках окружения добавьте три значения.
+
+| Вид | Имя | Значение |
+| --- | --- | --- |
+| Secret | `AWS_ACCESS_KEY_ID` | Идентификатор статического ключа |
+| Secret | `AWS_SECRET_ACCESS_KEY` | Секретная часть того же ключа |
+| Variable | `S3_BUCKET` | Имя бакета: `tinnitusnotch` |
+
+После добавления workflow в `main` каждый push запускает публикацию. Для ручного запуска откройте **Actions → Deploy to Object Storage → Run workflow**, выберите `main`. Перед переносом отключите прежнюю автоматическую сборку production в Cloudflare Workers Builds, если репозиторий ещё подключён к ней. Ручная команда `pnpm deploy:preview` относится к прежнему отдельному preview.
+
+## Что попадает в бакет
+
+Workflow использует Node.js 26.13.1 и закреплённый в `package.json` pnpm 11.22.0. Кеш pnpm привязан к lock-файлу. После установки с `--frozen-lockfile` идут проверка форматирования, линтер, TypeScript, Vitest и браузерные тесты `pnpm test:e2e`. Затем `pnpm build` собирает сайт для публикации из `dist/client` с базовым путём `/`.
+
+[Скрипт публикации](../../scripts/deploy.py) проверяет список файлов до первой записи. Он пропускает внутренний манифест Vite, отклоняет неожиданные файлы и символьные ссылки. Секреты доступны только шагу загрузки. Новые типы публичных файлов нужно явно добавить в скрипт.
+
+| Объекты | Content-Type | Cache-Control |
+| --- | --- | --- |
+| Хешированные JS, CSS, шрифты в `assets/` | `text/javascript`, `text/css`, `font/woff2` | `public, max-age=31536000, immutable` |
+| Тексты лицензий в `licenses/` | `text/plain; charset=utf-8` | `public, max-age=3600` |
+| `index.html` | `text/html; charset=utf-8` | `no-cache` |
+
+AWS CLI загружает каждый объект командой `s3 cp` с явными заголовками, включая неизменившиеся файлы. Это обновляет метаданные, которые `s3 sync` мог бы пропустить. HTML загружается последним. При сбое на ресурсе посетители продолжают получать прежний HTML. Обновление нескольких объектов не атомарно. Группа concurrency сериализует запуски, старые JS/CSS, шрифты и лениво загружаемые аудиомодули остаются доступны.
+
+Чтобы увидеть план локально, выполните из корня репозитория с AWS CLI v2 в PATH:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+AWS_EC2_METADATA_DISABLED=true S3_BUCKET=preview.invalid python3 scripts/deploy.py --dryrun
+```
+
+## Откат и очистка
+
+**Откат.** Найдите последний успешный SHA в Actions. Верните изменения приложения и соответствующий lock-файл в `main` обратным коммитом через обычный review. Сохраните workflow Object Storage, если откатываете код до миграции. Push заново соберёт и опубликует все зависимости до замены HTML. Если причиной сбоя была сеть, повторите запуск для текущего `main`.
+
+**Очистка раз в месяц.** Владелец бакета может освободить место без права удаления у CI. Выберите успешный деплой этого workflow, **завершившийся более 30 дней назад**, и запишите время **начала** этого запуска в UTC. Каждый такой деплой заново записывает все свои ресурсы. Поэтому файл в `assets/`, изменённый строго раньше начала выбранного запуска, отсутствовал в той версии и во всех последующих, если его дата с тех пор не менялась. Это сохраняет и активные ресурсы давно не обновлявшегося сайта. Если подходящего запуска нет или файлы публиковали в обход workflow, отложите удаление.
+
+На время очистки приостановите запуски workflow и дождитесь окончания активного деплоя. В консоли бакета откройте `assets/`, сравните даты изменения с записанным UTC-временем и удалите только проверенные хешированные ключи. Затем включите workflow и проверьте, что опубликован текущий `main`. Обычное правило lifecycle «удалять всё старше 30 дней» может удалить действующий файл. Вкладке, открытой со старой версией дольше срока хранения, после очистки может потребоваться перезагрузка.
+
+## Проверка после публикации
+
+Проверьте стандартный адрес бакета, в том числе из российской сети без VPN. `curl` проверяет имя сервера и цепочку доверия TLS по умолчанию.
+
+```sh
+S3_BUCKET=tinnitusnotch
+DOMAIN="$S3_BUCKET.website.yandexcloud.net"
+SITE="https://$DOMAIN"
+dig +short "$DOMAIN" A
+curl -fsSI "$SITE/"                            # 200, text/html, no-cache
+curl -sS -o /dev/null -w '%{http_code}\n' "$SITE/white-noise"
+curl -sS -o /dev/null -w '%{http_code}\n' "$SITE/am-therapy"
+openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" </dev/null 2>/dev/null |
+  openssl x509 -noout -issuer -dates
+
+html=$(curl -fsS "$SITE/")
+js=$(printf '%s' "$html" | grep -Eo '/assets/[^"]+\.js' | head -1)
+css=$(printf '%s' "$html" | grep -Eo '/assets/[^"]+\.css' | head -1)
+font=$(curl -fsS "$SITE$css" | grep -Eo '/assets/[[:alnum:]_-]+\.woff2' | head -1)
+for asset in "$js" "$css" "$font"; do
+  test -n "$asset" && curl -fsSI "$SITE$asset"
+done
+curl -fsSI "$SITE/licenses/Onest-OFL.txt"
+```
+
+У ресурсов должны быть статус 200 и заголовки из таблицы. Откройте старые маршруты в браузере и проверьте переход на главную. В DevTools → Network шрифты и аудиомодули должны загружаться с домена сайта. Для чтения метаданных объекта напрямую используйте авторизованный профиль AWS CLI:
+
+```sh
+aws --endpoint-url https://storage.yandexcloud.net --region ru-central1 \
+  s3api head-object --bucket "$S3_BUCKET" --key index.html \
+  --query '[ContentType,CacheControl,ContentLength]'
+```
+
+| Симптом | Что проверить |
 | --- | --- |
-| https://vladplskv.github.io/tinnitusnotch/ | Вручную: workflow «Deploy static content to Pages» во вкладке Actions собирает `main` с `BASE_PATH=/tinnitusnotch/`. Пока его не запустили, там остаётся прежняя версия. |
-| https://tinnitusnotch.vlad-plskv.workers.dev | Автоматически: Cloudflare Workers Builds после каждого merge в `main`. Для веток он публикует ссылки preview в PR. |
-| https://tinnitusnotch-preview.vlad-plskv.workers.dev | Вручную: `pnpm deploy:preview` из рабочей копии, нужен `wrangler login`. |
+| CI сообщает `AccessDenied` или `SignatureDoesNotMatch` | Имя бакета, пару ключей в окружении `production`, роль на нужном бакете, регион `ru-central1`, разрешение доступа по статическим ключам. |
+| Домен показывает XML, 403 или чужой сертификат | Цель DNS с `website`, режим хостинга, публичное чтение, статус сертификата и его привязку в **HTTPS**. |
+| Браузер получил HTML вместо JS или CSS | Проверьте точный URL ресурса из HTML. Документ ошибки может скрывать отсутствие объекта. Проверьте статус, базовый путь и последний успешный запуск. |
+| Главная отвечает, но звук не запускается | Проверьте HTTPS и запросы к `*.worklet-*.js` в Network. AudioWorklet требует защищённого контекста. |
 
-Роутер берёт базовый путь из `import.meta.env.BASE_URL`, поэтому одна и та же сборка работает и в корне, и под `/tinnitusnotch/`.
+## Стоимость
 
-Посещения считает Cloudflare Web Analytics (панель Cloudflare → Analytics & Logs → Web Analytics). Beacon подключается только на `tinnitusnotch.vlad-plskv.workers.dev`, поэтому локальный запуск, preview-воркер и GitHub Pages в статистику не попадают.
+Для региона Россия на 26 ноября 2026 года ориентир для небольшого сайта составляет **0 ₽ в месяц за Object Storage и сертификат** в пределах месячной бесплатной квоты Standard. В неё входят 1 ГБ хранения, 10 000 операций группы PUT/POST/PATCH/LIST и 100 000 группы GET/HEAD/OPTIONS. Первые 100 ГБ исходящего трафика Object Storage за месяц также бесплатны. Регистрацию домена и платную DNS-зону учитывайте отдельно. При росте аудитории проверьте число запросов, трафик и фактические расходы в Billing. [Тарифы Object Storage](https://yandex.cloud/ru/docs/storage/pricing) · [Certificate Manager](https://yandex.cloud/ru/docs/certificate-manager/pricing) · [Cloud DNS](https://yandex.cloud/ru/docs/dns/pricing)

@@ -1,6 +1,22 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@font-face {
+  font-family: 'Doto';
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+  src: url('../fonts/Doto.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Onest';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('../fonts/Onest.woff2') format('woff2');
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
